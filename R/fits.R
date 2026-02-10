@@ -197,15 +197,16 @@ metrics<-function(y,loglik,par,F_dist,k)
 #'
 #' set.seed(1)
 #' y <- runif(50, min = 0.001, max = 0.999)
-#' dUMW1<-function(x,theta)
-#' {
+#'
+#' \dontrun{
+#' dUMW1<-function(x,theta) {
 #'   alpha<-theta[1]
 #'   gamma<-theta[2]
 #'   lambda<-theta[3]
 #'   (alpha/(log(x)*x^(lambda+1)))*((-log(x))^gamma)*(lambda*log(x)-gamma)*
 #'     exp(-alpha*((-log(x))^gamma)*x^(-lambda))
 #' }
-#'
+#' }
 #' Coef_estim(par = par, f_dist = dUMW1, y = y, name_par = name_par)
 #'
 #' @export
