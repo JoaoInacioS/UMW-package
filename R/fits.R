@@ -181,6 +181,7 @@ metrics<-function(y,loglik,par,F_dist,k)
 #' }
 #'
 #' @examples
+#' \dontrun{
 #' library(UMW)
 #'
 #' par <- c(0.3, 1.3, 0.5)
@@ -194,7 +195,6 @@ metrics<-function(y,loglik,par,F_dist,k)
 #' Coef_estim(par = par, hessian = hessian_ex, name_par = name_par)
 #'
 #' # Example using the probability density function:
-#' \dontrun{
 #'
 #' set.seed(1)
 #' y <- runif(50, min = 0.001, max = 0.999)
