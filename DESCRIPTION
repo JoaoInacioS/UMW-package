@@ -3,7 +3,7 @@ Type: Package
 Title: Unit-Modified Weibull Models
 Version: 0.0.0.9000
 Authors@R: 
-    person("João Inácio", "Scrimini", , "joao.inacio.scrimini", role = c("aut", "cre"))
+    person("João Inácio", "Scrimini", , "joao.inacio.scrimini@gmail.com", role = c("aut", "cre"))
 Description: Regression and distributional models based on the
     Unit-Modified Weibull distribution..
 License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
