@@ -231,10 +231,10 @@ param_names_RQUMW <- function(X, W, Z)
 
 # Simulate RQ-UMW ==============================================================
 
-#' Monte Carlo Simulation Study for the RQUMW Model
+#' Monte Carlo Simulation Study for the Regression Quantile Unit-Modified Weibull (RQ-UMW) Model
 #'
-#' Conducts a Monte Carlo simulation study for the regression quantile
-#' UMW (RQUMW) model under different sample sizes and quantile levels.
+#' Conducts a Monte Carlo simulation study for the (RQ-UMW) model under different
+#' sample sizes and quantile levels.
 #'
 #' @param f A model formula that specifies the covariate structure of the RQUMW
 #' model.
@@ -242,8 +242,7 @@ param_names_RQUMW <- function(X, W, Z)
 #'   in the data-generating process.
 #' @param n Integer vector indicating the sample sizes to be considered.
 #' @param re Integer indicating the number of Monte Carlo replications.
-#' @param RF Integer indicating the number of bootstrap or resampling
-#'   replications used in the estimation procedure.
+#' @param RF Integer number indicating the desired number of replicates.
 #' @param tau Numeric vector with quantile levels in the interval \eqn{(0,1)}.
 #' @param link_mu Character string or function specifying the link function
 #'   for the location parameter. If a character string is provided, it must be
@@ -254,9 +253,11 @@ param_names_RQUMW <- function(X, W, Z)
 #' @param n_cores Integer indicating the number of CPU cores to be used
 #'   for parallel computation.
 #' @param cen_name Character string used as a prefix for saved files.
-#' @param method Optimization method passed to \code{\link[stats]{optim}}.
+#' @param method Optimization method used by \code{\link[stats]{optim}}.
+#'   Possible values are \code{"Nelder-Mead"}, \code{"BFGS"},
+#'   \code{"CG"} and \code{"SANN"}.
 #' @param start.theta Optional numeric vector of initial values for the
-#'   regression parameters. If \code{NULL}, default values are internally
+#' parameters. If \code{NULL}, default values are internally
 #'   computed.
 #' @param set_seed Integer. Optional random seed for reproducibility.
 #'
@@ -265,12 +266,42 @@ param_names_RQUMW <- function(X, W, Z)
 #' \itemize{
 #'   \item \code{sample}: generated samples from the RQUMW model for each
 #'     combination of \code{n} and \code{tau};
-#'   \item \code{sim}: simulation results obtained from the estimation
-#'     procedure;
+#'   \item \code{sim}: a list containing the results of the Monte Carlo study,
+#'   with the following elements:
+#'   \itemize{
+#'     \item \code{output}: a numeric matrix of parameter estimates, where
+#'     each row corresponds to one Monte Carlo replication and each column
+#'     corresponds to one model parameter;
+#'     \item \code{table}: a numeric matrix (or data frame) summarizing the
+#'     Monte Carlo results, including the true parameter values, empirical
+#'     mean, bias, mean squared error (MSE), asymmetry (AS) and kurtosis (K).
+#'     This table is printed to the console as a side effect of the function;
+#'     \item \code{no_converg}: an integer giving the number of Monte Carlo
+#'     replications for which the estimation algorithm did not converge;
+#'     \item \code{time}: a character string reporting the total computation
+#'     time of the Monte Carlo study.
 #'   \item \code{cen_cov}: generated covariates used in the simulations;
 #'   \item \code{link_mu}: the link function specification used for the
-#'     location parameter.
-#' }
+#'     \eqn{\mu} parameter.
+#' }}
+#'
+#' @examples
+#' library(UMW)
+#'
+#' # Example without saving
+#' theta1<-c(bmu=c(0.2,-0.4),bgamma=c(1.5,0.7),blambda=c(0.8,1.4))
+#' f1<-y~X|W|Z
+#'
+#' simulate_RQUMW(f = f1,theta = theta1,n = c(100),tau = c(0.5),
+#'                re = 1100,RF = 1000,method = "BFGS",set_seed = 25)
+#'
+#' # Example saving
+#' theta2<-c(bmu=c(0.5,-0.6,0.2),bgamma=c(1.5),blambda=c(2.3))
+#' f2<-y~X1+X2|1|1
+#'
+#' simulate_RQUMW(f = f2,theta = theta2,n = c(50,100),tau = c(0.25,0.5),re = 1100,
+#'                RF = 1000,save = T,cen_name = paste0("sim_cen2"),
+#'                method = "BFGS",set_seed = 25)
 #'
 #' @export
 simulate_RQUMW <- function(f = y ~ X1 + X2|1|1,theta=c(0.5,-0.6,0.2,1.5,2.3),method="BFGS",

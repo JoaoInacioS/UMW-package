@@ -36,26 +36,30 @@ set of parameter estimates given a Hessian matrix or a log-likelihood function.
 \examples{
 library(UMW)
 
-par <- c(0.7, 1.3, 0.5)
+par <- c(0.3, 1.3, 0.5)
 name_par <- c("alpha", "gamma", "lambda")
 
 # Example using the Hessian matrix:
 
+hessian_ex <- -matrix(c(10, 2, 1, 2, 8, 0.5, 1, 0.5, 5),
+                      nrow = 3, byrow = TRUE) # fictitious Hessian
+
+Coef_estim(par = par, hessian = hessian_ex, name_par = name_par)
+
+# Example using the probability density function:
 \dontrun{
+
 set.seed(1)
 y <- runif(50, min = 0.001, max = 0.999)
 
-dUMW1 <- function(x, theta) {
-  alpha  <- theta[1]
-  gamma  <- theta[2]
-  lambda <- theta[3]
-  (alpha / (log(x) * x^(lambda + 1))) *
-    ((-log(x))^gamma) *
-    (lambda * log(x) - gamma) *
-    exp(-alpha * ((-log(x))^gamma) * x^(-lambda))
+dUMW1<-function(x,theta) {
+  alpha<-theta[1]
+  gamma<-theta[2]
+  lambda<-theta[3]
+  (alpha/(log(x)*x^(lambda+1)))*((-log(x))^gamma)*(lambda*log(x)-gamma)*
+    exp(-alpha*((-log(x))^gamma)*x^(-lambda))
 }
 
 Coef_estim(par = par, f_dist = dUMW1, y = y, name_par = name_par)
 }
-
 }

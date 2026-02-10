@@ -25,8 +25,7 @@ values \code{(alpha, gamma, lambda)}, all strictly positive.}
 
 \item{re}{Integer indicating the number of Monte Carlo replications.}
 
-\item{RF}{Integer indicating the number of random forest trees (or
-another resampling factor used in the estimation procedure).}
+\item{RF}{Integer number indicating the desired number of replicates.}
 
 \item{save}{Logical; if \code{TRUE}, the simulation results are saved
 to disk.}

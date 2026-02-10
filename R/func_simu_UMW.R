@@ -168,8 +168,7 @@ which.NA<-function(x)
 #'   values \code{(alpha, gamma, lambda)}, all strictly positive.
 #' @param n Integer vector indicating the sample sizes to be considered.
 #' @param re Integer indicating the number of Monte Carlo replications.
-#' @param RF Integer indicating the number of random forest trees (or
-#'   another resampling factor used in the estimation procedure).
+#' @param RF Integer number indicating the desired number of replicates.
 #' @param save Logical; if \code{TRUE}, the simulation results are saved
 #'   to disk.
 #' @param n_cores Integer indicating the number of CPU cores to be used
