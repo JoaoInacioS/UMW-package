@@ -1,15 +1,18 @@
 Package: UMW
-Title: What the Package Does (One Line, Title Case)
+Type: Package
+Title: Unit-Modified Weibull Models
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+    person("João Inácio", "Scrimini", , "joao.inacio.scrimini", role = c("aut", "cre"))
+Description: Regression and distributional models based on the
+    Unit-Modified Weibull distribution..
 License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
     license
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Imports:
+    stats,
     foreach,
     parallel,
     doSNOW,
