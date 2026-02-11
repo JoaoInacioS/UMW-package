@@ -104,6 +104,7 @@ EST_RQUMW<-function(y, X, W, Z, method="BFGS", g_mu, g_gamma, g_lambda,tau=0.5,
                  method=method,tau=tau,hessian=F,m.optim=1.0,control=list(fnscale=-1,reltol=1e-12)),T))
   if(class(mod)=="list"){
     if(ncol(Z)== 1 & var(Z[,1]) == 0){mod$par[ncol(X)+ncol(W)+1] <- abs(mod$par[ncol(X)+ncol(W)+1])}
+    if(ncol(W)== 1 & var(W[,1]) == 0){mod$par[ncol(X)+1] <- abs(mod$par[ncol(X)+1])}
     mod$hessian<-hessian_RQUMW(theta = mod$par,y = y,X = X,W = W,Z = Z,tau = tau,g_mu=g_mu,
                                g_gamma=g_gamma, g_lambda=g_lambda,ginv_mu = ginv_mu,
                                ginv_gamma = ginv_gamma,ginv_lambda = ginv_lambda)
@@ -128,6 +129,7 @@ llike_RQUMW <- function(theta, y, X, W, Z, tau, ginv_mu, ginv_gamma, ginv_lambda
   beta_gamma <- theta[(n_beta_mu+1):(n_beta_mu+n_beta_gamma)]
   beta_lambda <- theta[(n_beta_mu+n_beta_gamma+1):(n_beta_mu+n_beta_gamma+n_beta_lambda)]
   if(ncol(Z)== 1 & var(Z[,1]) == 0){beta_lambda <- abs(beta_lambda)}
+  if(ncol(W)== 1 & var(W[,1]) == 0){beta_gamma <- abs(beta_gamma)}
   #
   mu_i    <- ginv_mu(as.vector(X %*% beta_mu))
   gamma_i <- ginv_gamma(as.vector(W %*% beta_gamma))
@@ -158,6 +160,7 @@ vscore_RQUMW <- function(theta, y, X, W, Z, tau, g_mu, g_gamma, g_lambda,
   beta_gamma <- theta[(n_beta_mu+1):(n_beta_mu+n_beta_gamma)]
   beta_lambda<- theta[(n_beta_mu+n_beta_gamma+1):(n_beta_mu+n_beta_gamma+n_beta_lambda)]
   if(ncol(Z)== 1 & var(Z[,1]) == 0){beta_lambda <- abs(beta_lambda)}
+  if(ncol(W)== 1 & var(W[,1]) == 0){beta_gamma <- abs(beta_gamma)}
   #
   mu_i    <- ginv_mu(as.vector(X %*% beta_mu))
   gamma_i <- ginv_gamma(as.vector(W %*% beta_gamma))
@@ -206,6 +209,7 @@ hessian_RQUMW <- function(theta, y, X, W, Z, tau, g_mu, g_gamma, g_lambda,
   beta_gamma <- theta[(n_beta_mu+1):(n_beta_mu+n_beta_gamma)]
   beta_lambda<- theta[(n_beta_mu+n_beta_gamma+1):(n_beta_mu+n_beta_gamma+n_beta_lambda)]
   if(ncol(Z)== 1 & var(Z[,1]) == 0){beta_lambda <- abs(beta_lambda)}
+  if(ncol(W)== 1 & var(W[,1]) == 0){beta_gamma <- abs(beta_gamma)}
   #
   mu_i    <- ginv_mu(as.vector(X %*% beta_mu))
   gamma_i <- ginv_gamma(as.vector(W %*% beta_gamma))
