@@ -86,15 +86,16 @@ EST_RQUMW<-function(y, X, Z, method="BFGS", g_mu, g_lambda,tau=0.5,
     # lm: Ordinary Least Squares
     df1 <- data.frame(ynew=g_mu(y), X)
     if(any((X[,1])== 1) & var(X[,1]) == 0){
-      mod.ols1<-try(lm(ynew~.,data=df1[,-2]),T)
-    }else{mod.ols1<-try(lm(ynew~.-1,data=df1),T)}
+      mod.ols1<-try(quantreg::rq(ynew~.,data=df1[,-2],tau = tau),T)
+    }else{mod.ols1<-try(quantreg::rq(ynew~.-1,data=df1,tau = tau),T)}
     startbeta1<-mod.ols1$coefficients
     start.theta<-c(startbeta1,rep(1,1+ncol(Z)))
   }
   mod<-suppressWarnings(try(optim(par=start.theta,fn=llike_RQUMW,y=y,X=X,Z=Z,
                  gr = vscore_RQUMW,ginv_mu = ginv_mu, ginv_lambda = ginv_lambda,
                  g_mu=g_mu, g_lambda=g_lambda,method=method,tau=tau,hessian=F,
-                 m.optim=1.0,control=list(fnscale=-1,reltol=1e-12)),T))
+                 m.optim=1.0,control=list(fnscale=-1,reltol=1e-12,
+                                          maxit = 2000)),T))
   if(class(mod)=="list"){
     if(ncol(Z)== 1 & var(Z[,1]) == 0){mod$par[ncol(X)+2] <- abs(mod$par[ncol(X)+2])}
     mod$par[ncol(X)+1] <- abs(mod$par[ncol(X)+1])
