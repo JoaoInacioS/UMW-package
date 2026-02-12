@@ -282,8 +282,8 @@ Coef_estim <- function(par, hessian = NULL, f_dist = NULL, y = NULL, name_par = 
 #'   \item \strong{formula}: Model formula supplied by the user.
 #'   \item \strong{data}: Data frame used for fitting the model.
 #'   \item \strong{y}: Numeric vector of observed responses.
-#'   \item \strong{X, W, Z}: Design matrices for the \eqn{\mu}, \eqn{\gamma},
-#'   and \eqn{\lambda} parameters, respectively. Each column represents a covariate.
+#'   \item \strong{X, Z}: Design matrices for the \eqn{\mu} and \eqn{\lambda} parameters,
+#'   respectively. Each column represents a covariate.
 #'   \item \strong{pars}: Estimated parameter vector.
 #'   \item \strong{coef}: Matrix with parameter estimates, standard errors,
 #'   z-statistics, p-values, and significance codes.
@@ -322,7 +322,7 @@ Coef_estim <- function(par, hessian = NULL, f_dist = NULL, y = NULL, name_par = 
 #' X2<-rnorm(100)
 #' data <- data.frame(y = y, X1 = X1, X2 = X2)
 #'
-#' fit1 <- fit_RQUMW(f = y ~ . | 1 | 1, data = data, tau = 0.5,
+#' fit1 <- fit_RQUMW(f = y ~ . | 1, data = data, tau = 0.5,
 #'                   method = "BFGS",link_mu = "logit")
 #'
 #' fit2 <- fit_RQUMW(y ~ ., data = data, tau = 0.25,
@@ -331,15 +331,12 @@ Coef_estim <- function(par, hessian = NULL, f_dist = NULL, y = NULL, name_par = 
 #' fit3 <- fit_RQUMW(y ~ X1 + X2 -1, data = NULL, tau = 0.75,
 #'                   method = "Nelder-Mead",link_mu = "cloglog")
 #'
-#' fit4 <- fit_RQUMW(f = y ~ X1-1| 1 | X1, data = NULL, tau = 0.5,
+#' fit4 <- fit_RQUMW(f = y ~ X1-1| X1, data = NULL, tau = 0.5,
 #'                   method = "BFGS",link_mu = "loglog")
-#'
-#' fit5 <- fit_RQUMW(f = y ~ X1 |X2-1|X1, data = NULL, tau = 0.35,
-#'                   method = "BFGS",link_mu = "cauchit")
 #'
 #' @export
 
-fit_RQUMW<-function(f,data = NULL,tau=0.5,link_mu="logit",method="BFGS",
+fit_RQUMW<-function(f,data = NULL,tau=0.5,link_mu="probit",method="BFGS",
                           start.theta=NULL,printmodel=T)
 {
   #----------------------------------------------------------------------------#
@@ -351,47 +348,47 @@ fit_RQUMW<-function(f,data = NULL,tau=0.5,link_mu="logit",method="BFGS",
   f <- as.formula(f, env = parent.frame())
   parts <- strsplit(deparse(f), "\\|")[[1]]
   parts <- trimws(parts)
-  if (length(parts) == 1) parts <- c(parts, "1", "1")
-  if (length(parts) == 2) parts <- c(parts, "1")
+  if (length(parts) == 1) parts <- c(parts, "1")
+  parts <- parts[1:2]
   fix_part <- function(p) {
     p <- trimws(p)
-    if (grepl("y~", p, fixed = TRUE)) {
-      return(p)
+    if (grepl("~", p, fixed = TRUE)) {
+      p
+    } else {
+      paste("y ~", p)
     }
-    return(paste("y~", p))
   }
   f_mu <- as.formula(parts[1])
   y <- as.numeric(model.response(model.frame(f_mu, data = data)))
   X <- model.matrix(f_mu, data = data)
-  W <- model.matrix(as.formula(fix_part(parts[2])), data = data)
-  Z <- model.matrix(as.formula(fix_part(parts[3])), data = data)
+  Z <- model.matrix(as.formula(fix_part(parts[2])), data = data)
   if (!is.numeric(y) || !all(y > 0 & y < 1))
     stop("`y` must be numeric values in the interval (0,1).")
   #-----------------------Output-----------------------------------------------#
   out<-c()
   if(is.null(data)){
-    cbdata<-as.data.frame(cbind(y,X,W,Z))
+    cbdata<-as.data.frame(cbind(y,X,Z))
     out$data<-cbdata[, sapply(cbdata, function(x) length(unique(x)) > 1) &
                        !duplicated(as.list(cbdata))]
   }else{out$data<-data}
-  out$formula<-f;out$X<-as.matrix(X); out$W<-as.matrix(W); out$Z<-as.matrix(Z);
+  out$formula<-f;out$X<-as.matrix(X); out$Z<-as.matrix(Z);
   out$y<-y; out$quantile<-tau; out$n<-length(y); out$method<-method
   if(class(link_mu)=="function"){out$link$link_mu<-"unknown"}else{out$link$link_mu<-link_mu}
   class(out)<-c("RQ-UMW")
   #-----------------------Choice of Link Function------------------------------#
   out$link<-modifyList(out$link, get_link_functions(link_mu = link_mu))
-  out$link<-modifyList(out$link, func_linkWZ(W=W,Z=Z))
-  out$link[c("n_W","n_Z","Z","W")] <- NULL
+  out$link<-modifyList(out$link, func_linkWZ(Z=Z))
+  out$link[c("n_Z","Z")] <- NULL
   #-----------------------colnames(X)------------------------------------------#
   beta0<-c(expression(beta[0]),expression(beta[1]),expression(beta[2]),expression(beta[3]),
            expression(beta[4]),expression(beta[5]),expression(beta[6]),expression(beta[7]))
+  delta0<-c(expression(delta[0]),expression(delta[1]),expression(delta[2]),expression(delta[3]),
+           expression(delta[4]),expression(delta[5]),expression(delta[6]),expression(delta[7]))
   if(!is.null(colnames(X))){tmpnames1<-colnames(X)}else{tmpnames1<-c(beta0[1:ncol(as.matrix(X))])}
-  if(!is.null(colnames(W))){tmpnames2<-colnames(W)}else{tmpnames2<-c(beta0[1:ncol(as.matrix(W))])}
-  if(!is.null(colnames(Z))){tmpnames3<-colnames(Z)}else{tmpnames3<-c(beta0[1:ncol(as.matrix(Z))])}
+  if(!is.null(colnames(Z))){tmpnames3<-colnames(Z)}else{tmpnames3<-c(delta0[1:ncol(as.matrix(Z))])}
   #-------------------------Estimate-------------------------------------------#
-  tmp1<-suppressWarnings(EST_RQUMW(y = y, X = out$X, W = out$W, Z = out$Z,
+  tmp1<-suppressWarnings(EST_RQUMW(y = y, X = out$X, Z = out$Z,
         method = method,tau = tau,g_mu = out$link$g_mu,ginv_mu = out$link$ginv_mu,
-        g_gamma = out$link$g_gamma,ginv_gamma = out$link$ginv_gamma,
         g_lambda = out$link$g_lambda,ginv_lambda = out$link$ginv_lambda,
         start.theta = start.theta,applic = T))
   if (class(tmp1) != "list") {stop("ALGORITHM DID NOT CONVERGE!")}
@@ -402,11 +399,11 @@ fit_RQUMW<-function(f,data = NULL,tau=0.5,link_mu="logit",method="BFGS",
   out$hessian<- tmp1$hessian
   #-----------------------Initial Part of Function Output----------------------#
   beta<-out$pars[1:ncol(X)]
+  gamma<-out$pars[ncol(X)+1]
+  lambda<-Z%*%as.matrix(out$pars[(ncol(X)+2):(ncol(X)+1+ncol(Z))])
   out$zetahat<-as.vector(X%*%as.matrix(beta))
-  gamma<-W%*%as.matrix(out$pars[(ncol(X)+1):(ncol(X)+ncol(W))])
-  lambda<-Z%*%as.matrix(out$pars[(ncol(X)+ncol(W)+1):(ncol(X)+ncol(W)+ncol(Z))])
   out$fitted<-as.vector(out$link$ginv_mu(out$zetahat))
-  names(out$pars)<-c(paste0("μ:",tmpnames1),paste0("γ:",tmpnames2),paste0("λ:",tmpnames3))
+  names(out$pars)<-c(paste0("β:",tmpnames1),paste0("γ"),paste0("δ:",tmpnames3))
   out$qrnames<-names(out$pars)
   out$alpha<- as.vector(-((out$fitted^lambda)*log(tau))/((-log(out$fitted)))^(gamma))
   #-------------------------Estimate0------------------------------------------#

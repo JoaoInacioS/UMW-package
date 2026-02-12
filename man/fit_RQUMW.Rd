@@ -8,7 +8,7 @@ fit_RQUMW(
   f,
   data = NULL,
   tau = 0.5,
-  link_mu = "logit",
+  link_mu = "probit",
   method = "BFGS",
   start.theta = NULL,
   printmodel = T
@@ -43,8 +43,8 @@ A list containing the following components:
 \item \strong{formula}: Model formula supplied by the user.
 \item \strong{data}: Data frame used for fitting the model.
 \item \strong{y}: Numeric vector of observed responses.
-\item \strong{X, W, Z}: Design matrices for the \eqn{\mu}, \eqn{\gamma},
-and \eqn{\lambda} parameters, respectively. Each column represents a covariate.
+\item \strong{X, Z}: Design matrices for the \eqn{\mu} and \eqn{\lambda} parameters,
+respectively. Each column represents a covariate.
 \item \strong{pars}: Estimated parameter vector.
 \item \strong{coef}: Matrix with parameter estimates, standard errors,
 z-statistics, p-values, and significance codes.
@@ -88,7 +88,7 @@ X1<-rnorm(100)
 X2<-rnorm(100)
 data <- data.frame(y = y, X1 = X1, X2 = X2)
 
-fit1 <- fit_RQUMW(f = y ~ . | 1 | 1, data = data, tau = 0.5,
+fit1 <- fit_RQUMW(f = y ~ . | 1, data = data, tau = 0.5,
                   method = "BFGS",link_mu = "logit")
 
 fit2 <- fit_RQUMW(y ~ ., data = data, tau = 0.25,
@@ -97,10 +97,7 @@ fit2 <- fit_RQUMW(y ~ ., data = data, tau = 0.25,
 fit3 <- fit_RQUMW(y ~ X1 + X2 -1, data = NULL, tau = 0.75,
                   method = "Nelder-Mead",link_mu = "cloglog")
 
-fit4 <- fit_RQUMW(f = y ~ X1-1| 1 | X1, data = NULL, tau = 0.5,
+fit4 <- fit_RQUMW(f = y ~ X1-1| X1, data = NULL, tau = 0.5,
                   method = "BFGS",link_mu = "loglog")
-
-fit5 <- fit_RQUMW(f = y ~ X1 |X2-1|X1, data = NULL, tau = 0.35,
-                  method = "BFGS",link_mu = "cauchit")
 
 }

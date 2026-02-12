@@ -50,10 +50,9 @@ diagn_IME_RQUMW<-function(fit,M=c(1,2,3),base_size=12,graphic = T,print=T, act_p
   }
   out<-c()
   # m3 calculation ----------------------------------------------------------- #
-  calc_m3 <- calc_m3_RQUMW(fit$pars,fit$y,fit$X,fit$W,fit$Z,tau=fit$quantile,
-                          g_mu=fit$link$g_mu,g_gamma=fit$link$g_gamma,
-                          g_lambda=fit$link$g_lambda,ginv_mu=fit$link$ginv_mu,
-                          ginv_gamma=fit$link$ginv_gamma,ginv_lambda=fit$link$ginv_lambda)
+  calc_m3 <- calc_m3_RQUMW(fit$pars,fit$y,fit$X,fit$Z,tau=fit$quantile,
+                          g_mu=fit$link$g_mu,g_lambda=fit$link$g_lambda,
+                          ginv_mu=fit$link$ginv_mu,ginv_lambda=fit$link$ginv_lambda)
   out$m3<-calc_m3$m3
   out$A_n<-calc_m3$A_n
   out$B_n<-calc_m3$B_n
@@ -69,17 +68,14 @@ diagn_IME_RQUMW<-function(fit,M=c(1,2,3),base_size=12,graphic = T,print=T, act_p
       D  <- m3 <- m5 <- NA_real_
       y_i <- fit$y[-i]
       X_i <- fit$X[-i, , drop = FALSE]
-      W_i <- fit$W[-i, , drop = FALSE]
       Z_i <- fit$Z[-i, , drop = FALSE]
-      mod_i <- EST_RQUMW(y = y_i, X = X_i, W = W_i, Z = Z_i,tau = fit$quantile,
+      mod_i <- EST_RQUMW(y = y_i, X = X_i, Z = Z_i,tau = fit$quantile,
           applic = FALSE,start.theta = fit$pars, g_mu = fit$link$g_mu,
-          g_gamma = fit$link$g_gamma,g_lambda = fit$link$g_lambda,
-          ginv_mu = fit$link$ginv_mu,ginv_gamma = fit$link$ginv_gamma,
+          g_lambda = fit$link$g_lambda,ginv_mu = fit$link$ginv_mu,
           ginv_lambda = fit$link$ginv_lambda,method = fit$method)
-      res_i <- calc_m3_RQUMW(mod_i, y_i, X_i, W_i, Z_i,tau = fit$quantile,
-          g_mu = fit$link$g_mu,g_gamma = fit$link$g_gamma,g_lambda = fit$link$g_lambda,
-          ginv_mu = fit$link$ginv_mu,ginv_gamma = fit$link$ginv_gamma,
-          ginv_lambda = fit$link$ginv_lambda)
+      res_i <- calc_m3_RQUMW(mod_i, y_i, X_i, Z_i,tau = fit$quantile,
+          g_mu = fit$link$g_mu,g_lambda = fit$link$g_lambda,
+          ginv_mu = fit$link$ginv_mu,ginv_lambda = fit$link$ginv_lambda)
       diff_theta <- mod_i - fit$pars
       if (any(M %in% c(1, 3))) {
         D <- (fit$n - 1) * as.numeric(t(diff_theta) %*% (-res_i$A_n) %*% diff_theta)
@@ -145,17 +141,15 @@ diagn_IME_RQUMW<-function(fit,M=c(1,2,3),base_size=12,graphic = T,print=T, act_p
 
 ## Measure function 3 (m3): ----------------------------------------------------
 
-calc_m3_RQUMW <- function(theta_hat, y, X, W, Z, tau, g_mu, g_gamma, g_lambda,
+calc_m3_RQUMW <- function(theta_hat, y, X, Z, tau, g_mu, g_gamma, g_lambda,
                          ginv_mu, ginv_gamma, ginv_lambda){
   n <- length(y)
   k <- length(theta_hat)
-  S <- vscore_RQUMW(theta_hat, y, X, W, Z, tau=tau, g_mu = g_mu, ginv_mu = ginv_mu,
-                         g_gamma = g_gamma, ginv_gamma = ginv_gamma, g_lambda = g_lambda,
-                         ginv_lambda = ginv_lambda, vsmatrix = T)
+  S <- vscore_RQUMW(theta_hat, y, X, Z, tau=tau, g_mu = g_mu, ginv_mu = ginv_mu,
+                         g_lambda = g_lambda,ginv_lambda = ginv_lambda, vsmatrix = T)
   B_n <- (t(S) %*% (S)) / n
-  A_n <- hessian_RQUMW(theta_hat, y, X, W, Z, g_mu = g_mu, ginv_mu = ginv_mu,
-                            g_gamma = g_gamma, ginv_gamma = ginv_gamma, g_lambda = g_lambda,
-                            ginv_lambda = ginv_lambda,tau=tau) / n
+  A_n <- hessian_RQUMW(theta_hat, y, X, Z, g_mu = g_mu, ginv_mu = ginv_mu,
+                            g_lambda = g_lambda,ginv_lambda = ginv_lambda,tau=tau) / n
   P <- chol(-A_n)
   P_inv <- solve(P)
   C3_n <- P_inv %*% B_n %*% t(P_inv)
@@ -297,10 +291,9 @@ diagn_LocI_RQUMW <- function(fit,M=c(1,2),k=0,g_num = T,base_size=12,
   }
   out<-c()
   # case–weight -------------------------------------------------------------- #
-  out$Delta <- Delta <- t(vscore_RQUMW(fit$pars,y = fit$y,X = fit$X,W = fit$W,
+  out$Delta <- Delta <- t(vscore_RQUMW(fit$pars,y = fit$y,X = fit$X,
                           Z = fit$Z,tau=fit$quantile, g_mu = fit$link$g_mu,
-                          g_gamma = fit$link$g_gamma,g_lambda = fit$link$g_lambda,
-                          ginv_mu = fit$link$ginv_mu,ginv_gamma = fit$link$ginv_gamma,
+                          g_lambda = fit$link$g_lambda,ginv_mu = fit$link$ginv_mu,
                           ginv_lambda = fit$link$ginv_lambda, vsmatrix = T))
   # -------------------------------------------------------------------------- #
   I_inv <- solve(-fit$hessian)
@@ -412,12 +405,10 @@ diagn_DIST_RUMW <- function(fit, M = c(1,2), g_num = T, base_size = 12, act_para
     D <- R <- NA_real_
     y_i <- fit$y[-i]
     X_i <- as.matrix(fit$X[-i, , drop = FALSE])
-    W_i <- as.matrix(fit$W[-i, , drop = FALSE])
     Z_i <- as.matrix(fit$Z[-i, , drop = FALSE])
-    mod_i <- EST_RQUMW(y = y_i, X = X_i, W = W_i, Z = Z_i,tau = fit$quantile,
+    mod_i <- EST_RQUMW(y = y_i, X = X_i, Z = Z_i,tau = fit$quantile,
                        applic = T,start.theta = fit$pars, g_mu = fit$link$g_mu,
-                       g_gamma = fit$link$g_gamma,g_lambda = fit$link$g_lambda,
-                       ginv_mu = fit$link$ginv_mu,ginv_gamma = fit$link$ginv_gamma,
+                       g_lambda = fit$link$g_lambda,ginv_mu = fit$link$ginv_mu,
                        ginv_lambda = fit$link$ginv_lambda,method = fit$method)
     S2 <- solve(-mod_i$hessian)
     if (any(M %in% 1)) {

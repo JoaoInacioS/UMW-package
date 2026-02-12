@@ -7,16 +7,13 @@
 EST_RQUMW(
   y,
   X,
-  W,
   Z,
   method = "BFGS",
   g_mu,
-  g_gamma,
   g_lambda,
   tau = 0.5,
   applic = T,
   ginv_mu,
-  ginv_gamma,
   ginv_lambda,
   start.theta = NULL
 )
@@ -29,10 +26,6 @@ the open interval \eqn{(0,1)}.}
 \eqn{\mu} parameter. If an intercept is required, it must be explicitly
 included as a column in \code{X}.}
 
-\item{W}{Numeric matrix of covariates associated with the \eqn{\gamma}
-parameter. If an intercept is required, it must be explicitly
-included as a column in \code{W}.}
-
 \item{Z}{Numeric matrix of covariates associated with the \eqn{\lambda}
 parameter. If an intercept is required, it must be explicitly
 included as a column in \code{Z}.}
@@ -42,8 +35,6 @@ Possible values are \code{"Nelder-Mead"}, \code{"BFGS"},
 \code{"CG"} and \code{"SANN"}.}
 
 \item{g_mu}{Link function for the \eqn{\mu} parameter.}
-
-\item{g_gamma}{Link function for the \eqn{\gamma} parameter.}
 
 \item{g_lambda}{Link function for the \eqn{\lambda} parameter.}
 
@@ -55,8 +46,6 @@ estimates is returned.}
 
 \item{ginv_mu}{Inverse link function for the \eqn{\mu} parameter.}
 
-\item{ginv_gamma}{Inverse link function for the \eqn{\gamma} parameter.}
-
 \item{ginv_lambda}{Inverse link function for the \eqn{\lambda} parameter.}
 
 \item{start.theta}{Optional numeric vector of initial values for the
@@ -66,8 +55,7 @@ values are internally determined.}
 \value{
 If \code{applic = TRUE}, returns a list containing:
 \itemize{
-\item \code{par}: numeric vector of parameter estimates
-\eqn{(\hat{\alpha}, \hat{\gamma}, \hat{\lambda})};
+\item \code{par}: numeric vector of parameter estimates;
 \item \code{value}: maximized log-likelihood value;
 \item \code{counts}: number of function and gradient evaluations;
 \item \code{convergence}: convergence code returned by
@@ -90,16 +78,15 @@ library(UMW)
 n <- 100
 y<-runif(n = n,min = 0.001,max = 0.999)
 X<-cbind(intercept = 1,X1 = runif(n),X2 = runif(n))
-W<-Z<-matrix(1,n,1)
+Z<-matrix(1,n,1)
 # Logit:
 g_mu <- function(mu) {log(mu / (1 - mu))}
 ginv_mu <- function(eta) {1 / (1 + exp(-eta))}
 # Identity:
-g_gamma <- ginv_gamma <- function(x) x
 g_lambda <- ginv_lambda <- function(x) x
 
-EST_RQUMW(y=y,X=X,W=W,Z=Z,g_mu = g_mu,g_gamma = g_gamma,g_lambda = g_lambda,
-ginv_mu = ginv_mu,ginv_gamma = ginv_gamma,ginv_lambda = ginv_lambda,
+EST_RQUMW(y=y,X=X,Z=Z,g_mu = g_mu,g_lambda = g_lambda,
+ginv_mu = ginv_mu,ginv_lambda = ginv_lambda,
 method = "BFGS",tau = 0.5)
 
 }

@@ -5,14 +5,14 @@
 \title{Monte Carlo Simulation Study for the Regression Quantile Unit-Modified Weibull (RQ-UMW) Model}
 \usage{
 simulate_RQUMW(
-  f = y ~ X1 + X2 | 1 | 1,
+  f = y ~ X1 + X2 | 1,
   theta = c(0.5, -0.6, 0.2, 1.5, 2.3),
   method = "BFGS",
   n = 50,
   re = 100,
   RF = 100,
   tau = 0.5,
-  link_mu = "logit",
+  link_mu = "probit",
   save = F,
   start.theta = NULL,
   n_cores = (parallel::detectCores() - 1),
@@ -90,15 +90,15 @@ sample sizes and quantile levels.
 library(UMW)
 
 # Example without saving
-theta1<-c(bmu=c(0.2,-0.4),bgamma=c(1.5,0.7),blambda=c(0.8,1.4))
-f1<-y~X|W|Z
+theta1<-c(beta=c(0.2,-0.4),gamma=c(1.5),delta=c(0.8,1.4))
+f1<-y~X|Z
 
 simulate_RQUMW(f = f1,theta = theta1,n = c(100),tau = c(0.5),
                re = 1100,RF = 1000,method = "BFGS",set_seed = 25)
 
 # Example saving
-theta2<-c(bmu=c(0.5,-0.6,0.2),bgamma=c(1.5),blambda=c(2.3))
-f2<-y~X1+X2|1|1
+theta2<-c(beta=c(0.5,-0.6,0.2),gamma=c(1.5),delta=c(2.3))
+f2<-y~X1+X2|1
 
 simulate_RQUMW(f = f2,theta = theta2,n = c(50,100),tau = c(0.25,0.5),re = 1100,
                RF = 1000,save = T,cen_name = paste0("sim_cen2"),

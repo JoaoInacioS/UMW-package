@@ -1,15 +1,14 @@
 # Generate reparameterized sample RQ-UMW =======================================
 
-rRQUMW<-function(n,theta,X,W,Z,tau=0.5,ginv_mu,ginv_gamma,ginv_lambda)
+rRQUMW<-function(n,theta,X,Z,tau=0.5,ginv_mu,ginv_lambda)
 {
-  n_X <- ncol(X); n_W <- ncol(W); n_Z <- ncol(Z)
+  n_X <- ncol(X); n_Z <- ncol(Z)
   #
   beta_mu <- theta[1:n_X]
-  beta_gamma <- theta[(n_X+1):(n_X+n_W)]
-  beta_lambda <- theta[(n_X+n_W+1):(n_X+n_W+n_Z)]
+  gamma_i <- theta[(n_X+1)]
+  beta_lambda <- theta[(n_X+2):(n_X+1+n_Z)]
   #
   mu_i    <- ginv_mu(as.vector(X %*% beta_mu))
-  gamma_i <- ginv_gamma(as.vector(W %*% beta_gamma))
   lambda_i<- ginv_lambda(as.vector(Z %*% beta_lambda))
   alpha_i <- -((mu_i^lambda_i)*log(tau))/((-log(mu_i))^(gamma_i))
   #
@@ -19,7 +18,7 @@ rRQUMW<-function(n,theta,X,W,Z,tau=0.5,ginv_mu,ginv_gamma,ginv_lambda)
   j<-1
   while(j<=n){
     u<-runif(1)
-    parms<-c(u,alpha_i[j],gamma_i[j],lambda_i[j])
+    parms<-c(u,alpha_i[j],gamma_i,lambda_i[j])
     tmp<-try(suppressWarnings(stats::uniroot(f=eq,lower=0.0001,upper=0.9999,parms=parms)),T)
     if(class(tmp)=="list"){
       y[j]<-tmp$root
@@ -46,22 +45,11 @@ save_cen_RQ2<-function(outputRQUMW,RF,tau,n,write="sim")
 
 ## function for connection -----------------------------------------------------
 
-func_linkWZ<-function(W,Z)
+func_linkWZ<-function(Z)
 {
   out<-c()
-  if(is.null(W)){out$W<-matrix(1,n,1)}else{out$W=as.matrix(W)}
   if(is.null(Z)){out$Z<-matrix(1,n,1)}else{out$Z=as.matrix(Z)}
-  out$n_W <- ncol(W)
   out$n_Z <- ncol(Z)
-  #
-  if(all(out$W[,1] == 1, na.rm = TRUE) & out$n_W==1){
-    out$g_gamma <- out$ginv_gamma <- function(x) x
-    out$link_gamma <- "identity"
-  }else{
-    out$g_gamma   <- function(l)   log(l)
-    out$ginv_gamma <- function(eta) exp(eta)
-    out$link_gamma <- "log"
-  }
   if(all(out$Z[,1] == 1, na.rm = TRUE) & out$n_Z==1){
     out$g_lambda <- out$ginv_lambda <- function(x) x
     out$link_lambda <- "identity"
@@ -78,13 +66,14 @@ func_linkWZ<-function(W,Z)
 gen_covariates <- function(formula, n)
 {
   p <- strsplit(deparse(formula), "\\|")[[1]]
-  p <- c(trimws(p), "1", "1")[1:3]
-  get_info <- function(f){
+  p <- c(trimws(p), "1")[1:2]
+  get_info <- function(f) {
     tt <- terms(as.formula(f))
-    list(intercept = attr(tt, "intercept"),k = length(attr(tt, "term.labels")))
+    list(intercept = attr(tt, "intercept"),
+      k = length(attr(tt, "term.labels")))
   }
-  info <- list(mu     = get_info(p[1]),gamma  = get_info(paste("~", p[2])),
-               lambda = get_info(paste("~", p[3])))
+  info <- list(mu     = get_info(p[1]),
+    lambda = get_info(paste("~", p[2])))
   gen <- function(info){
     X <- if (info$k > 0)
       matrix(runif(n * info$k), n) else NULL
@@ -92,8 +81,9 @@ gen_covariates <- function(formula, n)
       X <- cbind(rep(1,n), X)
     X
   }
-  return(list(X = gen(info$mu),W = gen(info$gamma),Z = gen(info$lambda)))
+  list(X = gen(info$mu),Z = gen(info$lambda))
 }
+
 
 ## mu linking function ---------------------------------------------------------
 
@@ -142,8 +132,8 @@ get_link_functions <- function(link_mu)
 
 ## RQ-UMW function sample replicates -------------------------------------------
 
-samples_RQUMW <- function(theta, X, W, Z, n = 50, re = 100, tau = 0.5,
-                          ginv_mu, ginv_gamma, ginv_lambda,set_seed = NULL,
+samples_RQUMW <- function(theta, X, Z, n = 50, re = 100, tau = 0.5,
+                          ginv_mu, ginv_lambda,set_seed = NULL,
                           n_cores = (parallel::detectCores() - 1))
 {
   require(foreach)
@@ -158,10 +148,8 @@ samples_RQUMW <- function(theta, X, W, Z, n = 50, re = 100, tau = 0.5,
   opts <- progresso(iterations = re, sec = "[1/2]")
   samples_list <- try(foreach(j = 1:re,.packages = c("foreach"),.options.snow = opts,
                           .export = c("rRQUMW")) %dopar% {
-                            as.numeric(rRQUMW(n = n, theta = theta, X = X, W = W, Z = Z,
-                                              tau = tau, ginv_mu = ginv_mu,
-                                              ginv_gamma = ginv_gamma,
-                                              ginv_lambda = ginv_lambda))
+                            as.numeric(rRQUMW(n = n, theta = theta, X = X, Z = Z,
+                               tau = tau, ginv_mu = ginv_mu,ginv_lambda = ginv_lambda))
   },T)
   foreach::registerDoSEQ()
   parallel::stopCluster(cl)
@@ -172,10 +160,9 @@ samples_RQUMW <- function(theta, X, W, Z, n = 50, re = 100, tau = 0.5,
 
 ## RQ-UMW monte carlo simulation function --------------------------------------
 
-sim_est_RQUMW <- function(sample, theta, X, W, Z, n, tau,
-                          re = 100, RF = 100, method = "BFGS",
-                          g_mu, ginv_mu, g_gamma, ginv_gamma,
-                          g_lambda, ginv_lambda, start.theta = NULL,
+sim_est_RQUMW <- function(sample, theta, X, Z, n, tau,
+                          re = 100, RF = 100, method = "BFGS", g_mu,
+                          ginv_mu, g_lambda, ginv_lambda, start.theta = NULL,
                           n_cores = (parallel::detectCores() - 1))
 {
   require(foreach)
@@ -188,9 +175,9 @@ sim_est_RQUMW <- function(sample, theta, X, W, Z, n, tau,
                   "vscore_RQUMW", "hessian_RQUMW","test.fun", "which.NA")) %dopar% {
     EST <- rep(NA, len_k)
     if (k < RF) {
-      EST <- suppressWarnings(EST_RQUMW(y = sample[, k], X = X, W = W, Z = Z,
-          tau = tau,g_mu = g_mu, method = method,ginv_mu = ginv_mu,g_gamma = g_gamma,
-          ginv_gamma = ginv_gamma,g_lambda = g_lambda, ginv_lambda = ginv_lambda,
+      EST <- suppressWarnings(EST_RQUMW(y = sample[, k], X = X, Z = Z,
+          tau = tau,g_mu = g_mu, method = method,ginv_mu = ginv_mu,
+          g_lambda = g_lambda, ginv_lambda = ginv_lambda,
           start.theta = start.theta, applic = FALSE))
     }
     EST <- unname(as.numeric(EST))
@@ -207,7 +194,7 @@ sim_est_RQUMW <- function(sample, theta, X, W, Z, n, tau,
   if (nrow(output1) > RF) output1 <- output1[1:RF, ]
   #
   tabela <- tab_est(output1, theta)
-  row.names(tabela) <- c(param_names_RQUMW(X, W, Z))
+  row.names(tabela) <- c(param_names_RQUMW(X,Z))
   print(tabela)
   #
   sec <- round(time[["elapsed"]])
@@ -217,16 +204,20 @@ sim_est_RQUMW <- function(sample, theta, X, W, Z, n, tau,
 
 ## parameter names -------------------------------------------------------------
 
-param_names_RQUMW <- function(X, W, Z)
+param_names_RQUMW <- function(X, Z)
 {
-  has_intercept <- function(M) {any(X[,1]==1) & var(M[, 1]) == 0}
+  has_intercept <- function(M) {ncol(M) > 0 && var(M[, 1]) == 0}
   idx <- function(M) {
+    if (is.null(M) || ncol(M) == 0) return(character(0))
     p <- ncol(M)
-    if (p == 0) return(integer(0))
-    if (has_intercept(M)) c("(icpt)", seq_len(p - 1)) else seq_len(p)
+    if (has_intercept(M))
+      c("(icpt)", seq_len(p - 1))
+    else
+      seq_len(p)
   }
-  c(paste0("μ", idx(X)),paste0("γ", idx(W)),paste0("λ", idx(Z)))
+  c(paste0("β", idx(X)),"γ",paste0("δ", idx(Z)))
 }
+
 
 
 # Simulate RQ-UMW ==============================================================
@@ -289,23 +280,23 @@ param_names_RQUMW <- function(X, W, Z)
 #' library(UMW)
 #'
 #' # Example without saving
-#' theta1<-c(bmu=c(0.2,-0.4),bgamma=c(1.5,0.7),blambda=c(0.8,1.4))
-#' f1<-y~X|W|Z
+#' theta1<-c(beta=c(0.2,-0.4),gamma=c(1.5),delta=c(0.8,1.4))
+#' f1<-y~X|Z
 #'
 #' simulate_RQUMW(f = f1,theta = theta1,n = c(100),tau = c(0.5),
 #'                re = 1100,RF = 1000,method = "BFGS",set_seed = 25)
 #'
 #' # Example saving
-#' theta2<-c(bmu=c(0.5,-0.6,0.2),bgamma=c(1.5),blambda=c(2.3))
-#' f2<-y~X1+X2|1|1
+#' theta2<-c(beta=c(0.5,-0.6,0.2),gamma=c(1.5),delta=c(2.3))
+#' f2<-y~X1+X2|1
 #'
 #' simulate_RQUMW(f = f2,theta = theta2,n = c(50,100),tau = c(0.25,0.5),re = 1100,
 #'                RF = 1000,save = T,cen_name = paste0("sim_cen2"),
 #'                method = "BFGS",set_seed = 25)
 #'
 #' @export
-simulate_RQUMW <- function(f = y ~ X1 + X2|1|1,theta=c(0.5,-0.6,0.2,1.5,2.3),method="BFGS",
-                           n=50,re=100,RF=100,tau=0.5,link_mu="logit",save=F,start.theta = NULL,
+simulate_RQUMW <- function(f = y ~ X1 + X2|1,theta=c(0.5,-0.6,0.2,1.5,2.3),method="BFGS",
+                           n=50,re=100,RF=100,tau=0.5,link_mu="probit",save=F,start.theta = NULL,
                            n_cores = (parallel::detectCores()-1),cen_name="sim",set_seed=NULL)
 {
   if (!is.null(set_seed)) {
@@ -326,19 +317,17 @@ tau =",tauc,"& n =",nc,"----
      ")
       a2<-paste0("n", nc)
       cen_cov[[a1]][[a2]]=gen_covariates(formula = f,n = nc)
-      X<-cen_cov[[a1]][[a2]]$X;W<-cen_cov[[a1]][[a2]]$W;Z<-cen_cov[[a1]][[a2]]$Z
-      funcWZ<-func_linkWZ(W=W,Z=Z)
+      X<-cen_cov[[a1]][[a2]]$X;Z<-cen_cov[[a1]][[a2]]$Z
+      funcWZ<-func_linkWZ(Z=Z)
       #
       nsamplerq[[a1]][[a2]] <- samplerq <- suppressWarnings(
-        samples_RQUMW(n=nc,theta=theta,X=X,W=W,Z=Z,ginv_mu=ginv_mu,
-                      ginv_gamma=funcWZ$ginv_gamma,ginv_lambda=funcWZ$ginv_lambda,
-                      tau=tauc,re=re,n_cores = n_cores,set_seed=set_seed))
+        samples_RQUMW(n=nc,theta=theta,X=X,Z=Z,ginv_mu=ginv_mu,tau=tauc,re=re,
+                      ginv_lambda=funcWZ$ginv_lambda,n_cores = n_cores,set_seed=set_seed))
       sim_rumw[[a1]][[a2]] <- suppressWarnings(
-        sim_est_RQUMW(sample = samplerq, X = X, W = W, Z = Z, n = nc,method = method,
-                           theta = theta, tau = tauc, re = re, RF = RF,start.theta = start.theta,
-                           n_cores =  n_cores,g_mu = g_mu, g_gamma = funcWZ$g_gamma,
-                           g_lambda = funcWZ$g_lambda, ginv_mu = ginv_mu,
-                           ginv_gamma = funcWZ$ginv_gamma, ginv_lambda = funcWZ$ginv_lambda))
+        sim_est_RQUMW(sample = samplerq, X = X, Z = Z, n = nc,method = method,
+                      theta = theta, tau = tauc, re = re, RF = RF,start.theta = start.theta,
+                      n_cores =  n_cores,g_mu = g_mu,g_lambda = funcWZ$g_lambda,
+                      ginv_mu = ginv_mu,ginv_lambda = funcWZ$ginv_lambda))
       # Save
       if(save==T){
         save_n<-list(sample = nsamplerq[[a1]][[a2]],sim = sim_rumw[[a1]][[a2]],
@@ -352,4 +341,10 @@ tau =",tauc,"& n =",nc,"----
   invisible(list(sample = nsamplerq,sim = sim_rumw,cen_cov = cen_cov,link_mu=link_mu))
 }
 
+
+# theta1<-c(beta=c(0.2,-0.4),gamma=c(1.5),delta=c(0.8,1.4))
+# f1<-y~X|Z
+#
+# simulate_RQUMW(f = f1,theta = theta1,n = c(100),tau = c(0.5),
+#                re = 1100,RF = 1000,method = "BFGS",set_seed = 25)
 
