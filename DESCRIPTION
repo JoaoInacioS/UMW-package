@@ -24,5 +24,6 @@ Imports:
     GLDEX,
     progress,
     nortest,
-    numDeriv
+    numDeriv,
+    quantreg
     
