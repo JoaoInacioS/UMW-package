@@ -86,8 +86,8 @@ EST_RQUMW<-function(y, X, Z, method="BFGS", g_mu, g_lambda,tau=0.5,
     # lm: Ordinary Least Squares
     df1 <- data.frame(ynew=g_mu(y), X)
     if(any((X[,1])== 1) & var(X[,1]) == 0){
-      mod.ols1<-try(quantreg::rq(ynew~.,data=df1[,-2],tau = tau),T)
-    }else{mod.ols1<-try(quantreg::rq(ynew~.-1,data=df1,tau = tau),T)}
+      mod.ols1<-try(lm(ynew~.,data=df1[,-2]),T)
+    }else{mod.ols1<-try(lm(ynew~.-1,data=df1),T)}
     startbeta1<-mod.ols1$coefficients
     start.theta<-c(startbeta1,rep(1,1+ncol(Z)))
   }
