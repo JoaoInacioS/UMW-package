@@ -168,29 +168,33 @@ sim_est_RQUMW <- function(sample, theta, X, Z, n, tau,
   require(foreach)
   opts <- progresso(iterations = re, sec = "[2/2]")
   len_k <- length(theta)
+  estimate<-bigstatsr::FBM(nrow=re,ncol=len_k)
+  n_NA<-bigstatsr::FBM(nrow=re,ncol=1)
   cl <- parallel::makeCluster(n_cores)
   doSNOW::registerDoSNOW(cl)
-  time <- system.time({try(estimate_list <- foreach(k = 1:re,.packages = c("foreach"),
+  time <- system.time({try(foreach(k = 1:re,.packages = c("foreach"),
       .options.snow = opts,.export = c("EST_RQUMW", "llike_RQUMW", "is.positive",
                   "vscore_RQUMW", "hessian_RQUMW","test.fun", "which.NA")) %dopar% {
-    EST <- rep(NA, len_k)
-    if (k < RF) {
-      EST <- suppressWarnings(EST_RQUMW(y = sample[, k], X = X, Z = Z,
-          tau = tau,g_mu = g_mu, method = method,ginv_mu = ginv_mu,
-          g_lambda = g_lambda, ginv_lambda = ginv_lambda,
-          start.theta = start.theta, applic = FALSE))
+    output<-as.data.frame(estimate[])
+    output[output==0]<-NA
+    l_out<-nrow(which.NA(output))
+    if(l_out<RF){
+      estimate[k,]<-EST<- suppressWarnings(EST_RQUMW(y = sample[, k], X = X, Z = Z,
+      tau = tau,g_mu = g_mu, method = method,ginv_mu = ginv_mu,
+      g_lambda = g_lambda, ginv_lambda = ginv_lambda,
+      start.theta = start.theta, applic = FALSE))
+      if(any(is.na(EST))){n_NA[k]<-1}
     }
-    EST <- unname(as.numeric(EST))
-    data.frame(t(EST), n_NA = any(is.na(EST)))
+    if(l_out>=RF){
+    }
   },T)})
   foreach::registerDoSEQ()
   parallel::stopCluster(cl)
   #
-  estimate_df <- do.call(rbind, estimate_list)
-  n_NA_total <- sum(estimate_df$n_NA)
-  output1 <- estimate_df[, 1:len_k]
-  output1[output1 == 0] <- NA
-  output1 <- which.NA(output1)
+  n_NA_total<-sum(n_NA[])
+  output1<-as.data.frame(estimate[])
+  output1[output1==0]<-NA
+  output1<-which.NA(output1)
   if (nrow(output1) > RF) output1 <- output1[1:RF, ]
   #
   tabela <- tab_est(output1, theta)

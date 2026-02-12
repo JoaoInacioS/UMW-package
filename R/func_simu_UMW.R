@@ -61,32 +61,34 @@ sim_est_UMW <- function(sample, theta = c(0.7, 1.3, 0.5), n = 40, re = 100, RF =
 {
   require(foreach)
   opts <- progresso(iterations = re, sec = "[2/2]")
+  estimate<-bigstatsr::FBM(nrow=re,ncol=3)
+  n_NA<-bigstatsr::FBM(nrow=re,ncol=1)
   cl <- parallel::makeCluster(n_cores)
   doSNOW::registerDoSNOW(cl)
-  time <- system.time({try(estimate_list <- foreach(k = 1:re,
+  time <- system.time({try(foreach(k = 1:re,
                              .packages = c("foreach"),.options.snow = opts,
                              .export = c("Est_UMW", "which.NA", "test.fun", "is.positive",
                                          "hessian_UMW", "vscore_UMW", "llike_UMW")) %dopar% {
-     EST <- rep(NA, 3)
-     output_df <- as.data.frame(sample)
-     output_df[output_df == 0] <- NA
-     l_out <- nrow(which.NA(output_df))
-     if (l_out < RF) {
-       EST <- suppressWarnings(
+     output<-as.data.frame(estimate[])
+     output[output==0]<-NA
+     l_out<-nrow(which.NA(output))
+     if(l_out<RF){
+       estimate[k,]<-EST<-suppressWarnings(
          Est_UMW(x = sample[, k], start.theta = start.theta, method = method, applic = FALSE)
        )
+       if(any(is.na(EST))){n_NA[j]<-1}
      }
-     data.frame(t(EST), n_NA = any(is.na(EST)))
+     if(l_out>=RF){
+     }
   },T)})
   foreach::registerDoSEQ()
   parallel::stopCluster(cl)
   #
-  estimate_df <- do.call(rbind, estimate_list)
-  n_NA_total <- sum(estimate_df$n_NA)
-  output1 <- estimate_df[, 1:3]
-  output1[output1 == 0] <- NA
-  output1 <- which.NA(output1)
-  if (nrow(output1) > RF) output1 <- output1[1:RF, ]
+  n_NA_total<-sum(n_NA[])
+  output1<-as.data.frame(estimate[])
+  output1[output1==0]<-NA
+  output1<-which.NA(output1)
+  if(nrow(output1)>=RF){output1<-output1[1:RF,]}
   #
   tabela<-tab_est(output1,theta)
   row.names(tabela) <- c("α", "γ", "λ")
