@@ -47,7 +47,6 @@ hessian_ex <- -matrix(c(10, 2, 1, 2, 8, 0.5, 1, 0.5, 5),
 Coef_estim(par = par, hessian = hessian_ex, name_par = name_par)
 
 # Example using the probability density function:
-\dontrun{
 
 set.seed(1)
 y <- runif(50, min = 0.001, max = 0.999)
@@ -61,5 +60,5 @@ dUMW1<-function(x,theta) {
 }
 
 Coef_estim(par = par, f_dist = dUMW1, y = y, name_par = name_par)
-}
+
 }

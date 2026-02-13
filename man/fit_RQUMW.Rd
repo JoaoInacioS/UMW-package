@@ -82,22 +82,28 @@ analytically.
 \examples{
 library(UMW)
 
-set.seed(34)
+set.seed(25)
 y<-runif(100, 0.01, 0.99)
 X1<-rnorm(100)
 X2<-rnorm(100)
 data <- data.frame(y = y, X1 = X1, X2 = X2)
 
-fit1 <- fit_RQUMW(f = y ~ . | 1, data = data, tau = 0.5,
+# Demonstrations of ways to use the function:
+
+fit1 <- fit_RQUMW(f = y ~ X2 | 1, data = data, tau = 0.5,
                   method = "BFGS",link_mu = "logit")
 
 fit2 <- fit_RQUMW(y ~ ., data = data, tau = 0.25,
                   method = "CG",link_mu = "probit")
 
 fit3 <- fit_RQUMW(y ~ X1 + X2 -1, data = NULL, tau = 0.75,
-                  method = "Nelder-Mead",link_mu = "cloglog")
+                  method = "SANN",link_mu = "cloglog")
 
+## Entrada com função de ligação:
+### loglog:
+g_mu <- function(mu) {log(-log(mu))}
 fit4 <- fit_RQUMW(f = y ~ X1-1| X1, data = NULL, tau = 0.5,
-                  method = "BFGS",link_mu = "loglog")
+                  method = "Nelder-Mead",link_mu = g_mu,printmodel = F)
+summary_RQUMW(fit4)
 
 }

@@ -194,7 +194,6 @@ metrics<-function(y,loglik,par,F_dist,k)
 #' Coef_estim(par = par, hessian = hessian_ex, name_par = name_par)
 #'
 #' # Example using the probability density function:
-#' \dontrun{
 #'
 #' set.seed(1)
 #' y <- runif(50, min = 0.001, max = 0.999)
@@ -208,7 +207,7 @@ metrics<-function(y,loglik,par,F_dist,k)
 #' }
 #'
 #' Coef_estim(par = par, f_dist = dUMW1, y = y, name_par = name_par)
-#' }
+#'
 #' @export
 Coef_estim <- function(par, hessian = NULL, f_dist = NULL, y = NULL, name_par = NULL) {
   if (is.null(hessian)) {
@@ -316,23 +315,29 @@ Coef_estim <- function(par, hessian = NULL, f_dist = NULL, y = NULL, name_par = 
 #' @examples
 #' library(UMW)
 #'
-#' set.seed(34)
+#' set.seed(25)
 #' y<-runif(100, 0.01, 0.99)
 #' X1<-rnorm(100)
 #' X2<-rnorm(100)
 #' data <- data.frame(y = y, X1 = X1, X2 = X2)
 #'
-#' fit1 <- fit_RQUMW(f = y ~ . | 1, data = data, tau = 0.5,
+#' # Demonstrations of ways to use the function:
+#'
+#' fit1 <- fit_RQUMW(f = y ~ X2 | 1, data = data, tau = 0.5,
 #'                   method = "BFGS",link_mu = "logit")
 #'
 #' fit2 <- fit_RQUMW(y ~ ., data = data, tau = 0.25,
 #'                   method = "CG",link_mu = "probit")
 #'
 #' fit3 <- fit_RQUMW(y ~ X1 + X2 -1, data = NULL, tau = 0.75,
-#'                   method = "Nelder-Mead",link_mu = "cloglog")
+#'                   method = "SANN",link_mu = "cloglog")
 #'
+#' ## Entrada com função de ligação:
+#' ### loglog:
+#' g_mu <- function(mu) {log(-log(mu))}
 #' fit4 <- fit_RQUMW(f = y ~ X1-1| X1, data = NULL, tau = 0.5,
-#'                   method = "BFGS",link_mu = "loglog")
+#'                   method = "Nelder-Mead",link_mu = g_mu,printmodel = F)
+#' summary_RQUMW(fit4)
 #'
 #' @export
 

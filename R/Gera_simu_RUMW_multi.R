@@ -284,17 +284,17 @@ param_names_RQUMW <- function(X, Z)
 #' library(UMW)
 #'
 #' # Example without saving
-#' theta1<-c(beta=c(0.2,-0.4),gamma=c(1.5),delta=c(0.8,1.4))
 #' f1<-y~X|Z
+#' theta1<-c(beta=c(-2,4),gamma=c(7),delta=c(-0.5,5.4))
 #'
-#' simulate_RQUMW(f = f1,theta = theta1,n = c(100),tau = c(0.5),
+#' simulate_RQUMW(f = f1,theta = theta1,n = c(100),tau = c(0.5),link_mu = "probit",
 #'                re = 1100,RF = 1000,method = "BFGS",set_seed = 25)
 #'
 #' # Example saving
-#' theta2<-c(beta=c(0.5,-0.6,0.2),gamma=c(1.5),delta=c(2.3))
-#' f2<-y~X1+X2|1
+#' f2<-y~X1 + X2|Z
+#' theta2<-c(beta=c(-2,0.7,3),gamma=c(2.6),delta=c(1.5,3.4))
 #'
-#' simulate_RQUMW(f = f2,theta = theta2,n = c(50,100),tau = c(0.25,0.5),re = 1100,
+#' simulate_RQUMW(f = f2,theta = theta2,n = c(100,300),tau = c(0.25,0.5),re = 1100,
 #'                RF = 1000,save = T,cen_name = paste0("sim_cen2"),
 #'                method = "BFGS",set_seed = 25)
 #'
@@ -345,10 +345,4 @@ tau =",tauc,"& n =",nc,"----
   invisible(list(sample = nsamplerq,sim = sim_rumw,cen_cov = cen_cov,link_mu=link_mu))
 }
 
-
-# theta1<-c(beta=c(0.2,-0.4),gamma=c(1.5),delta=c(0.8,1.4))
-# f1<-y~X|Z
-#
-# simulate_RQUMW(f = f1,theta = theta1,n = c(100),tau = c(0.5),
-#                re = 1100,RF = 1000,method = "BFGS",set_seed = 25)
 
