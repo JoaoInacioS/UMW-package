@@ -52,7 +52,8 @@ Est_UMW<-function(x,method="BFGS",applic = T,start.theta=c(1,1))
     stop("`method` must be one of: 'Nelder-Mead', 'BFGS', 'CG', 'SANN'.")
   mod1<-suppressWarnings(try(optim(par=start.theta,fn=llike_UMW,x=x,
                   method=method,gr=vscore_UMW,hessian=F,m.optim=1.0,
-                  control=list(fnscale=-1,reltol=1e-12)),T))
+                  control=list(fnscale=-1,reltol=1e-12,
+                               maxit = 2000)),T))
   if(class(mod1)=="list"){
     mod1$par[2]<-abs(mod1$par[2])
     alpha<-length(x)/sum((-log(x))^mod1$par[1]/x^mod1$par[2])

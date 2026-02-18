@@ -11,8 +11,9 @@
 #' @param y Numeric vector of observed data. Values must lie in the open
 #'   interval \eqn{(0,1)}. Missing values and observations outside this
 #'   interval are removed prior to estimation.
-#' @param method Character string specifying the optimization method to
-#'   be passed to \code{\link[stats]{optim}} (default is \code{"BFGS"}).
+#' @param method Optimization method used by \code{\link[stats]{optim}}.
+#'   Possible values are \code{"Nelder-Mead"}, \code{"BFGS"},
+#'   \code{"CG"} and \code{"SANN"}.
 #' @param start.theta Numeric vector of initial values for the parameters
 #'   of the UMW distribution. Default is \code{c(1, 1)}.
 #' @param print Logical; if \code{TRUE}, prints the results of the analysis
