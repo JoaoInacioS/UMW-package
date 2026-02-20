@@ -25,6 +25,7 @@
 #'   and normality diagnostics of the sample, including minimum (Min.),
 #'   median (Median), mean (Mean), maximum (Max.), standard deviation (sd),
 #'   skewness (AC), kurtosis (K), and Anderson–Darling normality test p-value (p.AD).
+#'   \item \strong{pars}: Estimated parameter vector.
 #'   \item \strong{coef}: Matrix containing parameter estimates, standard errors
 #'   and significance tests.
 #'   \item \strong{metrics}: Numeric vector with information criteria and
@@ -48,7 +49,7 @@
 #' fit_UMW(x,method="BFGS")
 #'
 #' @export
-fit_UMW<-function(x,method="BFGS",start.theta=c(1,1),print=T)
+fit_UMW<-function(x,method="BFGS",start.theta=c(1,1),print=T,graphic=T)
 {
   out<-c()
   n_x <- length(x)
@@ -77,6 +78,8 @@ fit_UMW<-function(x,method="BFGS",start.theta=c(1,1),print=T)
   out$method<-method
   mod1<-suppressWarnings(try(Est_UMW(x=x,method = method,applic = TRUE),T))
   if(is.null(mod1)){stop("ALGORITHM DID NOT CONVERGE!")}
+  out$x<-x
+  out$pars<-mod1$par
   out$metrics<-metrics(y=x,loglik = mod1$value,par = mod1$par,F_dist = pUMW,k=3)
   out$coef<-Coef_estim(par = mod1$par,hessian = mod1$hessian,
                        name_par = c("α", "γ", "λ"))
@@ -100,6 +103,9 @@ Metrics:
   tab<-round(as.numeric(out$metrics),3)
   names(tab)<-c("AIC","BIC","AICc","KS","AD","CvM")
   print(tab)
+  if(graphic == T){
+    print(suppressWarnings(plot_density(x = x,pars = out$pars)))
+  }
   }
   invisible(out)
 }
@@ -155,6 +161,30 @@ metrics<-function(y,loglik,par,F_dist,k)
   AD1 <- AD(theta = par,y = y,n = n,fda = F_dist)
   CvM1 <- cramer(theta = par,y = y,n = n,fda = F_dist)
   return(list(AIC = AIC1, BIC = BIC1, AICc = AICc1, KS = KS1, AD = AD1, CvM = CvM1))
+}
+
+## graphic ---------------------------------------------------------------------
+
+plot_density <- function(x,pars,bins = 10,y_max = NULL,base_size=12) {
+  xmin <- max(0.01,(floor(min(x) * bins) / bins))
+  xmax <- min(0.99,(ceiling(max(x) * bins) / bins))
+  xx <- seq(xmin, xmax, by = 0.001)
+  df <- data.frame(xx = xx,value = dUMW(theta = pars, x = xx))
+  hist_data <- hist(x, breaks = bins, plot = FALSE)
+  hist_df <- data.frame(x = hist_data$mids,y = hist_data$density)
+  if (is.null(y_max)) {y_max <- max(c(max(df$value), max(hist_data$density)))}
+  graf_density <- ggplot2::ggplot() +
+    ggplot2::geom_bar(data = hist_df,ggplot2::aes(x = x, y = y),stat = "identity",
+                      fill = "gray93",color = "gray35",width = round(
+                        (max(hist_data$breaks) - min(hist_data$breaks)) /
+                          length(hist_data$mids), 2)) +
+    ggplot2::geom_line(data = df,ggplot2::aes(x = xx, y = value),
+                       size = 0.7,color = "black",linetype = "solid") +
+    ggplot2::ylim(0, y_max) +
+    ggplot2::labs(x = "x",y = 'Density') +
+    ggplot2::theme_bw(base_size = base_size) +
+    ggplot2::theme(legend.position = "none",panel.grid = ggplot2::element_blank())
+  graf_density
 }
 
 ## coef ------------------------------------------------------------------------

@@ -4,7 +4,7 @@
 \alias{fit_UMW}
 \title{Fit the Unit-Modified Weibull(UMW) Distribution}
 \usage{
-fit_UMW(x, method = "BFGS", start.theta = c(1, 1), print = T)
+fit_UMW(x, method = "BFGS", start.theta = c(1, 1), print = T, graphic = T)
 }
 \arguments{
 \item{method}{Optimization method used by \code{\link[stats]{optim}}.
@@ -28,6 +28,7 @@ A list with the following components:
 and normality diagnostics of the sample, including minimum (Min.),
 median (Median), mean (Mean), maximum (Max.), standard deviation (sd),
 skewness (AC), kurtosis (K), and Anderson–Darling normality test p-value (p.AD).
+\item \strong{pars}: Estimated parameter vector.
 \item \strong{coef}: Matrix containing parameter estimates, standard errors
 and significance tests.
 \item \strong{metrics}: Numeric vector with information criteria and
