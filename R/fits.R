@@ -367,7 +367,7 @@ Coef_estim <- function(par, hessian = NULL, f_dist = NULL, y = NULL, name_par = 
 #' ## Entrada com função de ligação:
 #' ### loglog:
 #' g_mu <- function(mu) {log(-log(mu))}
-#' fit4 <- fit_RQUMW(f = y ~ X1-1| X1, data = NULL, tau = 0.5,
+#' fit4 <- fit_RQUMW(f = y ~ X1| X1, data = NULL, tau = 0.5,
 #'                   method = "Nelder-Mead",link_mu = g_mu,printmodel = F)
 #' summary_RQUMW(fit4)
 #'
