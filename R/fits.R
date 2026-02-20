@@ -352,7 +352,7 @@ fit_RQUMW<-function(f,data = NULL,tau=0.5,link_mu="probit",method="BFGS",
     stop("'data' must be either NULL or a data.frame.")
   }
   f <- as.formula(f, env = parent.frame())
-  parts <- strsplit(deparse(f), "\\|")[[1]]
+  parts <- strsplit(paste0(deparse(f), collapse = ""), "\\|")[[1]]
   parts <- trimws(parts)
   if (length(parts) == 1) parts <- c(parts, "1")
   parts <- parts[1:2]

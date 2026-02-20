@@ -7,8 +7,9 @@
 fit_UMW(x, method = "BFGS", start.theta = c(1, 1), print = T)
 }
 \arguments{
-\item{method}{Character string specifying the optimization method to
-be passed to \code{\link[stats]{optim}} (default is \code{"BFGS"}).}
+\item{method}{Optimization method used by \code{\link[stats]{optim}}.
+Possible values are \code{"Nelder-Mead"}, \code{"BFGS"},
+\code{"CG"} and \code{"SANN"}.}
 
 \item{start.theta}{Numeric vector of initial values for the parameters
 of the UMW distribution. Default is \code{c(1, 1)}.}
