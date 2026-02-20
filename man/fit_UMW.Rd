@@ -17,6 +17,8 @@ of the UMW distribution. Default is \code{c(1, 1)}.}
 \item{print}{Logical; if \code{TRUE}, prints the results of the analysis
 to the console. If \code{FALSE}, no output is printed.}
 
+\item{graphic}{Logical; if \code{TRUE}, diagnostic plots are produced.}
+
 \item{y}{Numeric vector of observed data. Values must lie in the open
 interval \eqn{(0,1)}. Missing values and observations outside this
 interval are removed prior to estimation.}
