@@ -8,10 +8,12 @@ diagn_IME_RQUMW(
   fit,
   M = c(1, 2, 3),
   base_size = 12,
-  graphic = T,
-  print = T,
-  act_parallel = T,
-  g_num = T,
+  graphic = TRUE,
+  print = TRUE,
+  act_parallel = TRUE,
+  g_num = TRUE,
+  single_obs = NULL,
+  influence = TRUE,
   n_cores = (parallel::detectCores() - 1)
 )
 }

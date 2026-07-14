@@ -67,7 +67,7 @@ sim_est_UMW <- function(sample, theta = c(0.7, 1.3, 0.5), n = 40, re = 100, RF =
   doSNOW::registerDoSNOW(cl)
   time <- system.time({try(foreach(k = 1:re,
                              .packages = c("foreach"),.options.snow = opts,
-                             .export = c("Est_UMW", "which.NA", "test.fun", "is.positive",
+                             .export = c("Est_UMW", "which.NA", "test.fun",
                                          "hessian_UMW", "vscore_UMW", "llike_UMW")) %dopar% {
      output<-as.data.frame(estimate[])
      output[output==0]<-NA
@@ -113,34 +113,23 @@ tab_est<-function(coeff,theta){
   tabela <- round(tabela, 4)
 }
 
-## all positions of the vector are positive ------------------------------------
-
-is.positive<-function(a)
-{
-  k<-length(a)
-  tmp<-sum(a>0)
-  return(k==tmp)
-}
-
 ## Convergence test ------------------------------------------------------------
 
 test.fun<-function(object)
 {
-  if(class(object)=="list"){
-    if(object$convergence==0){
-      parameters<-try(object$par,T)
-      hess<-try(object$hessian,T)
-      var.coef<-try(diag(solve(-hess)),T)
-      if(is.numeric(parameters)==TRUE){
-        if(is.numeric(var.coef)==TRUE){
-          if(is.positive(var.coef)==TRUE){
-            z<-c(parameters)
-            return(z)
-          }else{return(FALSE)}
-        }else{return(FALSE)}
-      }else{return(FALSE)}
-    }else{return(FALSE)}
-  }else{return(FALSE)}
+  if(object$convergence==0){
+    parameters<-try(object$par,T)
+    hess<-try(object$hessian,T)
+    var.coef<-try(diag(solve(-hess)),T)
+    if(is.numeric(parameters)==TRUE){
+      if(is.numeric(var.coef)==TRUE){
+        if(!any(var.coef<0)){
+          z<-c(parameters,var.coef)
+          return(z)
+        }else{return("The observed information matrix is not positive definite (negative variances detected).")}
+      }else{return("Failed to compute variances from the observed information matrix.")}
+    }else{return("Failed to extract parameter estimates.")}
+  }else{return("Algorithm did not converge!")}
 }
 
 
@@ -227,9 +216,7 @@ simulate_UMW <- function(theta=c(0.7,1.3,0.5),n=40,re=100,RF=100,save=F,start.th
   }
   outputUMW <- list()
   for (nc in n){
-    cat("
-n =",nc,"----
-   ")
+    cat("\nn =",nc,"----")
     outputUMW[[paste0("n", nc)]]$sample <- sample1 <- sample_UMW(theta = theta, n = nc,re = re,
                                                                  n_cores = n_cores,set_seed=set_seed)
     outputUMW[[paste0("n", nc)]]$sim <- suppressWarnings(sim_est_UMW(sample = sample1,theta = theta,

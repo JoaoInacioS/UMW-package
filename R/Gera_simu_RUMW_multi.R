@@ -1,7 +1,41 @@
 # Generate reparameterized sample RQ-UMW =======================================
-
-rRQUMW<-function(n,theta,X,Z,tau=0.5,ginv_mu,ginv_lambda)
+#' Random generation from the reparameterized Unit-Modified Weibull distribution
+#'
+#' Generates random observations from the reparameterized Unit Modified Weibull
+#' distribution using numerical inversion of the cumulative distribution
+#' function.
+#'
+#' @param n Integer. Number of observations to be generated.
+#' @param theta Numeric vector of model parameters.
+#' @param X Matrix of covariates associated with the parameter \eqn{\mu}.
+#' @param Z Matrix of covariates associated with the parameter \eqn{\lambda}.
+#' @param tau Numeric. Quantile level used in the model. Default is 0.5.
+#' @param ginv_mu Function. Inverse link function for \eqn{\mu}.
+#' @param ginv_lambda Function. Inverse link function for \eqn{\lambda}.
+#' @param set_seed Integer. Optional random seed for reproducibility.
+#'
+#' @return A numeric vector of length \code{n} containing random values generated
+#' from the reparameterized UMW distribution.
+#'
+#' @examples
+#' set.seed(20)
+#' n <- 50
+#' X <- cbind(1,runif(n))
+#' Z <- cbind(1,runif(n))
+#' theta <- c(0.5,-0.7, 1.2, 0.4,2.8)
+#'
+#' ginv_mu <- function(x) exp(x)/(1+exp(x))
+#' ginv_lambda <- function(x) exp(x)
+#'
+#' rRQUMW(n, theta, X, Z, tau = 0.5, ginv_mu, ginv_lambda,set_seed = 20)
+#'
+#' @export
+rRQUMW<-function(n,theta,X,Z,tau=0.5,ginv_mu,ginv_lambda,set_seed=NULL)
 {
+  if (!is.null(set_seed)) {
+    RNGkind("L'Ecuyer-CMRG")
+    set.seed(set_seed)
+  }
   n_X <- ncol(X); n_Z <- ncol(Z)
   #
   beta_mu <- theta[1:n_X]
@@ -168,12 +202,12 @@ sim_est_RQUMW <- function(sample, theta, X, Z, n, tau,
   require(foreach)
   opts <- progresso(iterations = re, sec = "[2/2]")
   len_k <- length(theta)
-  estimate<-bigstatsr::FBM(nrow=re,ncol=len_k)
+  estimate<-bigstatsr::FBM(nrow=re,ncol=len_k*2)
   n_NA<-bigstatsr::FBM(nrow=re,ncol=1)
   cl <- parallel::makeCluster(n_cores)
   doSNOW::registerDoSNOW(cl)
   time <- system.time({try(foreach(k = 1:re,.packages = c("foreach"),
-      .options.snow = opts,.export = c("EST_RQUMW", "llike_RQUMW", "is.positive",
+      .options.snow = opts,.export = c("EST_RQUMW", "llike_RQUMW",
                   "vscore_RQUMW", "hessian_RQUMW","test.fun", "which.NA")) %dopar% {
     output<-as.data.frame(estimate[])
     output[output==0]<-NA
@@ -187,7 +221,7 @@ sim_est_RQUMW <- function(sample, theta, X, Z, n, tau,
     }
     if(l_out>=RF){
     }
-  },T)})
+  },FALSE)})
   foreach::registerDoSEQ()
   parallel::stopCluster(cl)
   #
@@ -197,7 +231,7 @@ sim_est_RQUMW <- function(sample, theta, X, Z, n, tau,
   output1<-which.NA(output1)
   if (nrow(output1) > RF) output1 <- output1[1:RF, ]
   #
-  tabela <- tab_est(output1, theta)
+  tabela <- tab_est(coeff = output1[,1:len_k], theta)
   row.names(tabela) <- c(param_names_RQUMW(X,Z))
   print(tabela)
   #
@@ -316,13 +350,11 @@ simulate_RQUMW <- function(f = y ~ X1 + X2|1,theta=c(0.5,-0.6,0.2,1.5,2.3),metho
     a1<-paste0("t", tauc)
     nsamplerq[[a1]] <- sim_rumw[[a1]] <- cen_cov[[a1]] <- list()
     for (nc in n){
-      cat("
-tau =",tauc,"& n =",nc,"----
-     ")
       a2<-paste0("n", nc)
       cen_cov[[a1]][[a2]]=gen_covariates(formula = f,n = nc)
       X<-cen_cov[[a1]][[a2]]$X;Z<-cen_cov[[a1]][[a2]]$Z
       funcWZ<-func_linkWZ(Z=Z)
+      cat("\ntau =",tauc,"& n =",nc,"|",method,"-",link_mu,"-",funcWZ$link_lambda,"|:\n")
       #
       nsamplerq[[a1]][[a2]] <- samplerq <- suppressWarnings(
         samples_RQUMW(n=nc,theta=theta,X=X,Z=Z,ginv_mu=ginv_mu,tau=tauc,re=re,
@@ -339,8 +371,7 @@ tau =",tauc,"& n =",nc,"----
         save_cen_RQ2(outputRQUMW = save_n, RF = RF,  n = nc, tau = tauc, write = paste0(cen_name,"_RQUMW"))
       }
     }
-    cat("--------------------------------------------------------
-")
+    cat("-----------------------------------------------------\n")
   }
   invisible(list(sample = nsamplerq,sim = sim_rumw,cen_cov = cen_cov,link_mu=link_mu))
 }

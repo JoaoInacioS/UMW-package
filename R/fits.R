@@ -78,29 +78,21 @@ fit_UMW<-function(x,method="BFGS",start.theta=c(1,1),print=T,graphic=T)
                                          p.AD = nortest::ad.test(x)$p.value), 3))
   out$method<-method
   mod1<-suppressWarnings(try(Est_UMW(x=x,method = method,applic = TRUE),T))
-  if(is.null(mod1)){stop("ALGORITHM DID NOT CONVERGE!")}
+  if(class(mod1)!="list"){stop(paste("Error:",mod1))}
   out$x<-x
   out$pars<-mod1$par
   out$metrics<-metrics(y=x,loglik = mod1$value,par = mod1$par,F_dist = pUMW,k=3)
   out$coef<-Coef_estim(par = mod1$par,hessian = mod1$hessian,
                        name_par = c("α", "γ", "λ"))
-  out$convergence<-mod1$convergence==0
+  out$convergence<-TRUE
   #
   if(print==T){
-  cat("
-n:",out$n,"   NA's:",out$num_na,"   Omit(0 \u2265 x \u2265 1):",out$num_omit,"
-")
-  cat("
-Summary:
-")
+  cat("\nn:",out$n,"   NA's:",out$num_na,"   Omit(0 \u2265 x \u2265 1):",out$num_omit,"\n")
+  cat("\nSummary:\n")
   print(out$summary)
-  cat("
-Coefficients:
-")
+  cat("\nCoefficients:\n")
   print(out$coef)
-  cat("
-Metrics:
-")
+  cat("\nMetrics:\n")
   tab<-round(as.numeric(out$metrics),3)
   names(tab)<-c("AIC","BIC","AICc","KS","AD","CvM")
   print(tab)
@@ -299,7 +291,7 @@ Coef_estim <- function(par, hessian = NULL, f_dist = NULL, y = NULL, name_par = 
 #' @param tau Quantile level in \eqn{(0,1)} to be modeled. Default is \code{0.5}.
 #' @param link_mu Character string or function specifying the link for the
 #'   \eqn{\mu} parameter. Can be "logit", "probit", "cauchit", "cloglog", "loglog",
-#'   or a user-supplied function implementing the desired link. Default is \code{"logit"}.
+#'   or a user-supplied function implementing the desired link. Default is \code{"probit"}.
 #' @param method Optimization method used by \code{\link[stats]{optim}}.
 #'   Possible values are \code{"Nelder-Mead"}, \code{"BFGS"},
 #'   \code{"CG"} and \code{"SANN"}.
@@ -383,7 +375,8 @@ fit_RQUMW<-function(f,data = NULL,tau=0.5,link_mu="probit",method="BFGS",
     stop("'data' must be either NULL or a data.frame.")
   }
   f <- as.formula(f, env = parent.frame())
-  parts <- strsplit(paste0(deparse(f), collapse = ""), "\\|")[[1]]
+  f_txt <- paste(deparse(f), collapse = " ")
+  parts <- strsplit(f_txt, "\\|")[[1]]
   parts <- trimws(parts)
   if (length(parts) == 1) parts <- c(parts, "1")
   parts <- parts[1:2]
@@ -428,9 +421,9 @@ fit_RQUMW<-function(f,data = NULL,tau=0.5,link_mu="probit",method="BFGS",
         method = method,tau = tau,g_mu = out$link$g_mu,ginv_mu = out$link$ginv_mu,
         g_lambda = out$link$g_lambda,ginv_lambda = out$link$ginv_lambda,
         start.theta = start.theta,applic = T))
-  if (class(tmp1) != "list") {stop("ALGORITHM DID NOT CONVERGE!")}
+  if(inherits(tmp1, "try-error")){stop(paste("Error:",tmp1))}
   out$loglik<-tmp1$value
-  out$convergence<-tmp1$convergence==0
+  out$convergence<-TRUE
   out$pars<-tmp1$par
   out$outer.iter<-as.numeric(tmp1$counts[1])
   out$hessian<- tmp1$hessian
@@ -445,7 +438,8 @@ fit_RQUMW<-function(f,data = NULL,tau=0.5,link_mu="probit",method="BFGS",
   out$alpha<- as.vector(-((out$fitted^lambda)*log(tau))/((-log(out$fitted)))^(gamma))
   #-------------------------Estimate0------------------------------------------#
   tmp0<-suppressWarnings(Est_UMW(x=y,method=method,applic = T))
-  out$loglik0<-tmp0$value
+  if(class(tmp0)=="character"){out$loglik0<-NA
+    cat(paste("Warning (null model):",tmp0))}else{out$loglik0<-tmp0$value}
   #-----------------Cumulative Distribution Function---------------------------#
   peged<-function(y,alpha,gamma,lambda){(exp(-(alpha*(-log(y))^gamma)/y^lambda))}
   #------Quantile Residue------------------------------------------------------#
@@ -494,7 +488,7 @@ summary_RQUMW<-function(fit)
     stop("Object must be of class 'RQ-UMW'.")
   }
   cat(c("============================================================="),fill = TRUE)
-  cat(c("Link:",fit$link$link_mu," ","Quantile:",fit$quantile," ","Optimization:",fit$method),fill = TRUE)
+  cat(c("Link:",fit$link$link_mu," ","Quantile:",fit$quantile," ","Optimization:","nlminb"),fill = TRUE)
   cat(c("============================================================="),fill = TRUE)
   print(fit$coef)
   cat(c("---"),fill = TRUE)

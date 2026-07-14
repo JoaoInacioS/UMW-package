@@ -8,7 +8,7 @@ EST_RQUMW(
   y,
   X,
   Z,
-  method = "BFGS",
+  method = c("nlminb", "BFGS"),
   g_mu,
   g_lambda,
   tau = 0.5,
@@ -30,9 +30,8 @@ included as a column in \code{X}.}
 parameter. If an intercept is required, it must be explicitly
 included as a column in \code{Z}.}
 
-\item{method}{Optimization method used by \code{\link[stats]{optim}}.
-Possible values are \code{"Nelder-Mead"}, \code{"BFGS"},
-\code{"CG"} and \code{"SANN"}.}
+\item{method}{Optimization method used for parameter estimation.
+Possible values are \code{"nlminb"} and \code{"BFGS"}.}
 
 \item{g_mu}{Link function for the \eqn{\mu} parameter.}
 

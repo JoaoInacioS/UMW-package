@@ -8,10 +8,12 @@ diagn_LocI_RQUMW(
   fit,
   M = c(1, 2),
   k = 0,
-  g_num = T,
+  g_num = TRUE,
   base_size = 12,
-  print = T,
-  graphic = T
+  print = TRUE,
+  graphic = TRUE,
+  influence = TRUE,
+  single_obs = NULL
 )
 }
 \arguments{

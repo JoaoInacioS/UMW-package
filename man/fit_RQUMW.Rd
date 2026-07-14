@@ -25,7 +25,7 @@ components may be specified using the \code{|} operator.}
 
 \item{link_mu}{Character string or function specifying the link for the
 \eqn{\mu} parameter. Can be "logit", "probit", "cauchit", "cloglog", "loglog",
-or a user-supplied function implementing the desired link. Default is \code{"logit"}.}
+or a user-supplied function implementing the desired link. Default is \code{"probit"}.}
 
 \item{method}{Optimization method used by \code{\link[stats]{optim}}.
 Possible values are \code{"Nelder-Mead"}, \code{"BFGS"},
@@ -102,7 +102,7 @@ fit3 <- fit_RQUMW(y ~ X1 + X2 -1, data = NULL, tau = 0.75,
 ## Entrada com função de ligação:
 ### loglog:
 g_mu <- function(mu) {log(-log(mu))}
-fit4 <- fit_RQUMW(f = y ~ X1-1| X1, data = NULL, tau = 0.5,
+fit4 <- fit_RQUMW(f = y ~ X1| X1, data = NULL, tau = 0.5,
                   method = "Nelder-Mead",link_mu = g_mu,printmodel = F)
 summary_RQUMW(fit4)
 

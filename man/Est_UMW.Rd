@@ -4,14 +4,13 @@
 \alias{Est_UMW}
 \title{Parameter Estimation for the Unit-Modified Weibull(UMW) Distribution}
 \usage{
-Est_UMW(x, method = "BFGS", applic = T, start.theta = c(1, 1))
+Est_UMW(x, method = c("nlminb", "BFGS"), applic = T, start.theta = c(1, 1))
 }
 \arguments{
 \item{x}{Numeric vector with values in the unit interval (0, 1).}
 
-\item{method}{Optimization method used by \code{\link[stats]{optim}}.
-Possible values are \code{"Nelder-Mead"}, \code{"BFGS"},
-\code{"CG"} and \code{"SANN"}.}
+\item{method}{Optimization method used for parameter estimation.
+Possible values are \code{"nlminb"} and \code{"BFGS"}.}
 
 \item{applic}{Logical; if TRUE returns the full optimization object.}
 

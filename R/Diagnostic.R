@@ -40,32 +40,43 @@
 #'
 #' @export
 
-diagn_IME_RQUMW<-function(fit,M=c(1,2,3),base_size=12,graphic = T,print=T, act_parallel = T,
-                          g_num = T,n_cores = (parallel::detectCores()-1)){
+diagn_IME_RQUMW<-function(fit,M=c(1,2,3),base_size=12,graphic = TRUE,print = TRUE,
+                          act_parallel = TRUE,g_num = TRUE, single_obs = NULL,
+                          influence = TRUE, n_cores = (parallel::detectCores()-1)){
   if (!inherits(fit, "RQ-UMW")) {
     stop("Object must be of class 'RQ-UMW'.")
   }
   if(!any(M %in% c(1,2,3))){
     stop("Return some of the methods: 1 = D_t, 2 = M3_t and/or 3 = M5_t")
   }
+  if (!is.null(single_obs) && length(single_obs) != 1) {
+    stop("Error: 'single_obs' must be NULL or contain exactly one observation.")
+  }
   out<-c()
+  n<-fit$n
   # m3 calculation ----------------------------------------------------------- #
   calc_m3 <- calc_m3_RQUMW(fit$pars,fit$y,fit$X,fit$Z,tau=fit$quantile,
                           g_mu=fit$link$g_mu,g_lambda=fit$link$g_lambda,
                           ginv_mu=fit$link$ginv_mu,ginv_lambda=fit$link$ginv_lambda)
-  out$m3<-calc_m3$m3
-  out$A_n<-calc_m3$A_n
-  out$B_n<-calc_m3$B_n
-  out$C3_n<-calc_m3$C3_n
+  out$m3 <- calc_m3$m3
+  out$A_n <- calc_m3$A_n
+  out$B_n <- calc_m3$B_n
+  out$C3_n <- calc_m3$C3_n
   # -------------------------------------------------------------------------- #
+  if(!is.null(single_obs)){
+    k <- n <- single_obs
+    act_parallel <- FALSE
+    influence <- FALSE
+  }else{k<-1}
   require(foreach)
-  opts <- progresso(iterations = fit$n)
+  opts <- progresso(iterations = n)
   cl <- parallel::makeCluster(n_cores)
   doSNOW::registerDoSNOW(cl)
-  time <- system.time({try(metrics_list <- foreach(i = 1:fit$n,.packages = c("foreach"),
-      .options.snow = opts,.export = c("EST_RQUMW", "llike_RQUMW", "is.positive",
-      "vscore_RQUMW","hessian_RQUMW", "test.fun", "which.NA","calc_m3_RQUMW", "vech")) %dopar% {
-      D  <- m3 <- m5 <- NA_real_
+  `%op%` <- if (act_parallel) `%dopar%` else `%do%`
+  time <- system.time({try(metrics_list <- foreach(i = k:n,.packages = c("foreach"),
+      .options.snow = opts,.export = c("EST_RQUMW", "llike_RQUMW",
+      "vscore_RQUMW","hessian_RQUMW", "test.fun", "which.NA","calc_m3_RQUMW", "vech")) %op% {
+      D  <- m3 <- m5 <- NA
       y_i <- fit$y[-i]
       X_i <- fit$X[-i, , drop = FALSE]
       Z_i <- fit$Z[-i, , drop = FALSE]
@@ -86,51 +97,77 @@ diagn_IME_RQUMW<-function(fit,M=c(1,2,3),base_size=12,graphic = T,print=T, act_p
                                               res_i$B_n) %*% diff_theta)
       }
       data.frame(D = D, m3 = m3, m5 = m5)
-    },T)
+    },TRUE)
   })
   foreach::registerDoSEQ()
   parallel::stopCluster(cl)
   metrics_m <- do.call(rbind, metrics_list)
   # D_i ---------------------------------------------------------------------- #
   if(any(M %in% c(1,3))){out$D_t<-as.vector(metrics_m[,1])}
-  if(any(M %in% 1)){
-    D_i_infl<-g_threshold_pos(M_i = out$D_t,leg_y = expression(D[t]),graphic = graphic,
-                              res_num = g_num,base_size = base_size)
-    out$obs_D_t<-D_i_infl$Obs_infl
-    if(graphic == T){
-      out$graphics$D_t<-D_i_infl$graphcs_M
+    if(influence == TRUE && any(M %in% 1)){
+      D_i_infl<-g_threshold_pos(M_i = out$D_t,leg_y = expression(D[t]),
+                        graphic = graphic,res_num = g_num,base_size = base_size)
+      out$obs_D_t<-D_i_infl$Obs_infl
+      out$threshold_D_t <- D_i_infl$threshold
+      if(graphic == TRUE){
+        out$graphics$D_t <- D_i_infl$graphcs_M
+      }
     }
-  }
   # I1 & I2: s3_i ------------------------------------------------------------ #
   if(any(M %in% 2)){
-    out$m3_t<-as.vector(metrics_m[,2])
-    out$s3_t <- out$m3_t / out$m3
-    out$I_3<-interval_cook(sm = out$s3_t,Type = 1)
-    if(graphic == T){
-      out$graphics$gI_3<-g_diagnostic_RQUMW(sm_i = out$s3_t,v = 1,
-                         I1 = out$I_3$I1,leg_y = bquote(S[3*","*t]),n = fit$n,
-                         y = fit$y,res_num = g_num,base_size = base_size)
+    out$m3_t <- as.vector(metrics_m[,2])
+    s3 <- out$m3_t / out$m3
+    out$s3_t <- ifelse(s3 < 1, 1/s3, s3) - 1
+    if(influence == TRUE){
+      s3_t_infl <- g_threshold_pos(M_i = out$s3_t,leg_y = bquote(S[3*","*t]),
+                        graphic = graphic,res_num = g_num,base_size = base_size,
+                        weight = function(n){log(2*n)})
+      out$obs_s3_t <- s3_t_infl$Obs_infl
+      out$threshold_s3_t <- s3_t_infl$threshold
+      if(graphic == TRUE){
+        out$graphics$s3_t<-s3_t_infl$graphcs_M
+      }
     }
+    # if(influence == TRUE){
+    #   out$I_3<-interval_cook(sm = out$s3_t,Type = 1)
+    #   if(graphic == TRUE){
+    #     out$graphics$gI_3<-g_diagnostic_RQUMW(sm_i = out$s3_t,v = 1,
+    #                        I1 = out$I_3$I1,leg_y = bquote(S[3*","*t]),n = fit$n,
+    #                        y = fit$y,res_num = g_num,base_size = base_size)
+    #   }
+    # }
   }
   # I1 & I2: s5_i ------------------------------------------------------------ #
   if(any(M %in% 3)){
     out$Dm_t<-as.vector(metrics_m[,3])
-    out$s5_t <- out$Dm_t - out$D_t
-    out$I_5<-interval_cook(sm = out$s5_t,Type = 2)
-    if(graphic == T){
-      out$graphics$gI_5<- g_diagnostic_RQUMW(sm_i = out$s5_t,v = 0,
-                          I1 = out$I_5$I1,leg_y = bquote(S[5*","*t]),n = fit$n,
-                          y = fit$y,res_num = g_num,base_size = base_size)
+    out$s5_t <- abs(out$Dm_t - out$D_t)
+    if(influence == TRUE){
+      s5_t_infl<-g_threshold_pos(M_i = out$s5_t,leg_y = bquote(S[5*","*t]),
+                                graphic = graphic,res_num = g_num,base_size = base_size,
+                                weight = function(n){log(n)^1.1})
+      out$obs_s5_t<-s5_t_infl$Obs_infl
+      out$threshold_s5_t <- s5_t_infl$threshold
+      if(graphic == TRUE){
+        out$graphics$s5_t<-s5_t_infl$graphcs_M
+      }
     }
+    # if(influence == TRUE){
+    #   out$I_5<-interval_cook(sm = out$s5_t,Type = 2)
+    #   if(graphic == TRUE){
+    #     out$graphics$gI_5<- g_diagnostic_RQUMW(sm_i = out$s5_t,v = 0,
+    #                         I1 = out$I_5$I1,leg_y = bquote(S[5*","*t]),n = fit$n,
+    #                         y = fit$y,res_num = g_num,base_size = base_size)
+    #   }
+    # }
   }
   # Return ------------------------------------------------------------------- #
-  if(print==T){
+  if(influence == TRUE && print == TRUE){
     cat("Observation(s) considered as possible outlier: \n")
     if(any(M %in% 1)){cat("D_t:",out$obs_D_t,"\n")}
-    if(any(M %in% 2)){cat("Measure 3:",out$I_3$Obs_I1,"\n")}
-    if(any(M %in% 3)){cat("Measure 5:",out$I_5$Obs_I1,"\n")}
+    if(any(M %in% 2)){cat("Measure 3:",out$obs_s3_t,"\n")}
+    if(any(M %in% 3)){cat("Measure 5:",out$obs_s5_t,"\n")}
     cat("\n")
-    if(graphic == T){
+    if(graphic == TRUE){
       print(suppressWarnings(cowplot::plot_grid(plotlist = out$graphics,
                                                 ncol = length(out$graphics))))
     }
@@ -146,10 +183,10 @@ calc_m3_RQUMW <- function(theta_hat, y, X, Z, tau, g_mu, g_gamma, g_lambda,
   n <- length(y)
   k <- length(theta_hat)
   S <- vscore_RQUMW(theta_hat, y, X, Z, tau=tau, g_mu = g_mu, ginv_mu = ginv_mu,
-                         g_lambda = g_lambda,ginv_lambda = ginv_lambda, vsmatrix = T)
+                    g_lambda = g_lambda,ginv_lambda = ginv_lambda, vsmatrix = T)
   B_n <- (t(S) %*% (S)) / n
   A_n <- hessian_RQUMW(theta_hat, y, X, Z, g_mu = g_mu, ginv_mu = ginv_mu,
-                            g_lambda = g_lambda,ginv_lambda = ginv_lambda,tau=tau) / n
+                    g_lambda = g_lambda,ginv_lambda = ginv_lambda,tau=tau) / n
   P <- chol(-A_n)
   P_inv <- solve(P)
   C3_n <- P_inv %*% B_n %*% t(P_inv)
@@ -166,44 +203,56 @@ vech <- function(M){
 
 ## diagnostic graphics function ------------------------------------------------
 
-g_diagnostic_RQUMW<-function(sm_i,v,I1,n,y,res_num = T,leg_y = "S_ji",base_size=12){
-  df<-data.frame(sm_i=sm_i,n=1:n,y=y) |>
-    dplyr::mutate(n_infl=dplyr::case_when(sm_i > I1[1] & sm_i < I1[2] ~ NA,TRUE ~ n))
-  ggplot2::ggplot(df, ggplot2::aes(x=zoo::index(y),y=sm_i))+
-    ggplot2::geom_hline(yintercept=I1[2],colour="gray35",linewidth=0.35,linetype="dashed") +
-    ggplot2::geom_hline(yintercept=v,colour="gray40",linewidth=0.3, linetype="dotted") +
-    ggplot2::geom_hline(yintercept=I1[1],colour="gray35",linewidth=0.35,linetype="dashed") +
-    ggplot2::geom_point(size=1.8) +
+g_diagnostic_RQUMW<-function(sm_i,v,I1,n,y,res_num = T,leg_y = "S_ji",base_size=12,
+                             color_l = "gray35",linetype_l = "dashed"){
+  df<-data.frame(sm_i=sm_i,nk=1:n,y=y) |>
+    dplyr::mutate(n_infl=dplyr::case_when(sm_i > I1[[1]] & sm_i < I1[[2]] ~ NA,TRUE ~ nk))
+  ggplot2::ggplot(df, ggplot2::aes(x=nk,y=sm_i))+
+    ggplot2::geom_linerange(ggplot2::aes(ymin = v, ymax = sm_i,color = is.na(n_infl)),
+                            linewidth = 1,show.legend = FALSE) +
+    ggplot2::scale_color_manual(values = c("FALSE" = "red3", "TRUE" = "black")) +
+    ggplot2::geom_hline(yintercept = I1[[2]],color = color_l,linewidth = 0.3,
+                        linetype = linetype_l) +
+    ggplot2::geom_line(ggplot2::aes(x = nk, y = v),colour="gray40",linewidth=0.15,
+                       linetype="solid") +
+    ggplot2::geom_hline(yintercept = I1[[1]],color = color_l,linewidth = 0.3,
+                        linetype = linetype_l) +
     ggplot2::labs(x = "Index", y = leg_y)+
     ggplot2::theme_bw(base_size = base_size) +
     ggplot2::theme(panel.grid.major = ggplot2::element_blank(),
                    panel.grid.minor = ggplot2::element_blank()) +
-    if(res_num == T){ggplot2::geom_text(ggplot2::aes(label = n_infl),vjust=1.35,size=2.5)}
+    if(res_num == T){ggplot2::geom_text(ggplot2::aes(label = n_infl),
+                                        vjust = ifelse(sm_i < v, 1.35, -0.3),size=2.5)}
 }
 
 ## Graf cook -------------------------------------------------------------------
 
 g_threshold_pos<-function(M_i,leg_y = "y",res_num=T,base_size=12,graphic=T,
-                          threshold=NULL){
+                          weight=function(n){log(n)},threshold=NULL,
+                          color_l="gray35",linetype_l = "dashed"){
   out <- c()
   n <- length(M_i)
-  if (is.null(threshold)) {
-    threshold <- mean(M_i) + (n)^(1/3) * sd(M_i)
-  }
+  if (is.null(threshold)) {threshold <- mean(M_i) + (weight(n) * sd(M_i))}
   df_M_i <- data.frame(Obs = 1:n,M_i = M_i) |>
     dplyr::mutate(n_infl=dplyr::case_when(M_i <= threshold ~ NA,TRUE ~ Obs))
   obs_infl <- as.numeric(df_M_i$n_infl[!is.na(df_M_i$n_infl)])
   if(length(obs_infl) == 0){(obs_infl<-NA_integer_)}else{obs_infl}
   out$Obs_infl <- obs_infl
+  out$threshold <- threshold
   if(graphic == T){
     out$graphcs_M<-ggplot2::ggplot(df_M_i, ggplot2::aes(x = Obs, y = M_i)) +
-      ggplot2::geom_linerange(ggplot2::aes(ymin = 0, ymax = M_i), linewidth = 1, color = "black") +
+      ggplot2::geom_line(ggplot2::aes(x = Obs, y = 0),colour="gray40",linewidth=0.15,
+                         linetype="solid") +
+      ggplot2::geom_linerange(ggplot2::aes(ymin = 0, ymax = M_i,color = is.na(n_infl)),
+                              linewidth = 1,show.legend = FALSE) +
+      ggplot2::scale_color_manual(values = c("FALSE" = "red3", "TRUE" = "black")) +
       ggplot2::labs(x = "Index", y = leg_y) +
-      ggplot2::geom_hline(yintercept = threshold, color = "gray35", linetype = "dashed",
-                          linewidth = 0.25) +
+      ggplot2::geom_hline(yintercept = threshold,color = color_l,linewidth = 0.3,
+        linetype = linetype_l) +
       ggplot2::theme_bw(base_size = base_size) +
       ggplot2::theme(panel.grid = ggplot2::element_blank())+
-      if(res_num == T){ggplot2::geom_text(ggplot2::aes(label = n_infl),vjust=-0.3,size=2.5)}
+      if(res_num == T){ggplot2::geom_text(ggplot2::aes(label = n_infl),
+                                          vjust=-0.3,size=2.5)}
   }
   return(out)
 }
@@ -211,27 +260,34 @@ g_threshold_pos<-function(M_i,leg_y = "y",res_num=T,base_size=12,graphic=T,
 
 ## I1 & I2 ---------------------------------------------------------------------
 
-interval_cook<-function(sm,Type){
+interval_cook<-function(sm,Type,m_orig=NULL){
   # S3_i
   n <- length(sm)
   if(Type == 1){
-    weight<-(n)^(1/2)/2
-    I1 <- c(1 - weight*diff(quantile(sm, c(0.125,0.5))),
+    weight<-sqrt(n)/2
+    I1 <- list(1 - weight*diff(quantile(sm, c(0.125,0.5))),
             1 + weight*diff(quantile(sm, c(0.5,0.875))))
   }
   # S5_i
   if(Type == 2){
     weight<-(n)/3
-    I1 <- c(0 - weight*diff(quantile(sm, c(0.25,0.5))),
+    I1 <- list(0 - weight*diff(quantile(sm, c(0.25,0.5))),
             0 + weight*diff(quantile(sm, c(0.5,0.75))))
   }
   # I_Max
   if(Type == 3){
-    weight<-sqrt(n)/2
-    I1 <- c((0 - weight*diff(quantile(sm,c(0.125,0.5)))),
+    weight<-(log(n))^2/5
+    I1 <- list((0 - weight*diff(quantile(sm,c(0.125,0.5)))),
             (0 + weight*diff(quantile(sm,c(0.5,0.875)))))
   }
-  atipicas_I1 <- which(sm < I1[1] | sm > I1[2])
+  # pseudo_JaB
+  if(Type == 4){
+    n <- length(m_orig)
+    q_sig<-1-(n/(n+1))^2
+    I1<-quantile(sm,c(q_sig,1-(q_sig)))
+    sm<-m_orig
+  }
+  atipicas_I1 <- which(sm < I1[[1]] | sm > I1[[2]])
   if (length(atipicas_I1) == 0){(atipicas_I1<-NA_integer_)}else{atipicas_I1}
   return(list(Obs_I1=atipicas_I1,I1=I1))
 }
@@ -277,8 +333,8 @@ interval_cook<-function(sm,Type){
 #'
 #'
 #' @export
-diagn_LocI_RQUMW <- function(fit,M=c(1,2),k=0,g_num = T,base_size=12,
-                                 print=T,graphic = T) {
+diagn_LocI_RQUMW <- function(fit,M = c(1,2),k = 0,g_num = TRUE,base_size = 12,
+                             print = TRUE,graphic = TRUE,influence = TRUE, single_obs = NULL) {
   if (!inherits(fit, "RQ-UMW")) {
     stop("Object must be of class 'RQ-UMW'.")
   }
@@ -290,6 +346,7 @@ diagn_LocI_RQUMW <- function(fit,M=c(1,2),k=0,g_num = T,base_size=12,
     stop(paste0("'k' must be a numeric integer between 0 and ",n_k," (number of estimated parameters)."))
   }
   out<-c()
+  n<-fit$n
   # case–weight -------------------------------------------------------------- #
   out$Delta <- Delta <- t(vscore_RQUMW(fit$pars,y = fit$y,X = fit$X,
                           Z = fit$Z,tau=fit$quantile, g_mu = fit$link$g_mu,
@@ -304,40 +361,50 @@ diagn_LocI_RQUMW <- function(fit,M=c(1,2),k=0,g_num = T,base_size=12,
   param_symbols <- c("\u03B8","\u03B3","\u03BB",
                      sapply(0:(n_k-3), function(i) paste0("\u0392", i))
   )
+  if(!is.null(single_obs)){
+    h <- n <- single_obs
+    act_parallel <- FALSE
+    influence <- FALSE
+  }else{h<-1}
   # C_t ---------------------------------------------------------------------- #
   if(any(M %in% c(1))){
     C_t<- c()
-    for(t in 1:fit$n){
+    for(t in h:n){
       C_t[t] <- 2 * abs(as.numeric(t(Delta[,t]) %*% (I_inv-I_inv_neg) %*% Delta[,t]))
     }
     out$C_t <- C_t
-    C_t_infl<-g_threshold_pos(M_i = out$C_t,leg_y = expression(C[t]),graphic = graphic,
-                              res_num = g_num,base_size = base_size)
-    out$outliers$C_t <- C_t_infl$Obs_infl
-    if(graphic == T){
-      out$graphics$C_t<-C_t_infl$graphcs_M
+    if(influence == TRUE){
+      C_t_infl<-g_threshold_pos(M_i = out$C_t,leg_y = expression(C[t]),graphic = graphic,
+                                res_num = g_num,base_size = base_size)
+      out$outliers$C_t <- C_t_infl$Obs_infl
+      out$threshold$C_t <- C_t_infl$threshold
+      if(graphic == TRUE){
+        out$graphics$C_t<-C_t_infl$graphcs_M
+      }
     }
   }
   # I_max -------------------------------------------------------------------- #
   if(any(M %in% c(2))){
     eigen_res <- eigen(-t(Delta) %*% (I_inv-I_inv_neg) %*% Delta)
     out$C_max <- max(as.numeric(eigen_res$values))
-    out$I_max <- as.numeric(eigen_res$vectors[, which.max(eigen_res$values)])
-    out$I_max_lb<-interval_cook(sm = out$I_max,Type = 3)
-    out$outliers$I_max <- out$I_max_lb$Obs_I1
-    if(graphic == T){
-      out$graphics$I_max<-g_diagnostic_RQUMW(sm_i = out$I_max,v = 0,I1 = out$I_max_lb$I1,
-                                             leg_y = expression(I[max]),n = fit$n,y = fit$y,
-                                             res_num = g_num,base_size = base_size)
+    out$I_max <- as.numeric(eigen_res$vectors[, which.max(eigen_res$values)])[h:n]
+    if(influence == TRUE){
+      out$I_max_lb<-interval_cook(sm = out$I_max,Type = 3)
+      out$outliers$I_max <- out$I_max_lb$Obs_I1
+      if(graphic == TRUE){
+        out$graphics$I_max<-g_diagnostic_RQUMW(sm_i = out$I_max,v = 0,I1 = out$I_max_lb$I1,
+                             leg_y = expression(I[max]),n = fit$n,y = fit$y,
+                             res_num = g_num,base_size = base_size)
+      }
     }
   }
   # Return ------------------------------------------------------------------- #
-  if(print==T){
+  if(influence == TRUE && print == TRUE){
     cat("Observation(s) considered as possible outlier for",param_symbols[k+1],":\n")
     if(any(M %in% 1)){cat("C_t:",out$outliers$C_t,"\n")}
     if(any(M %in% 2)){cat("I_max:",out$outliers$I_max,"\n")}
     cat("\n")
-    if(graphic == T){
+    if(graphic == TRUE){
       print(suppressWarnings(cowplot::plot_grid(plotlist = out$graphics,
                                                 ncol = length(out$graphics))))    }
   }
@@ -384,30 +451,41 @@ diagn_LocI_RQUMW <- function(fit,M=c(1,2),k=0,g_num = T,base_size=12,
 #' UMW::diagn_DIST_RUMW(fit,M = c(2),g_num = F)
 #'
 #' @export
-diagn_DIST_RUMW <- function(fit, M = c(1,2), g_num = T, base_size = 12, act_parallel = T,
-                            print=T,graphic = T,n_cores = (parallel::detectCores()-1)){
+diagn_DIST_RQUMW <- function(fit, M = c(1,2), g_num = TRUE, base_size = 12,
+                            act_parallel = TRUE,influence = TRUE,print=TRUE,
+                            graphic = TRUE,n_cores = (parallel::detectCores()-1),
+                            single_obs=NULL){
   if (!inherits(fit, "RQ-UMW")) {
     stop("Object must be of class 'RQ-UMW'.")
   }
   if(!any(M %in% c(1,2))){
     stop("Return some of the methods: 1 = Frèchet distance and/or 2 = Rao distance")
   }
+  if (!is.null(single_obs) && length(single_obs) != 1) {
+    stop("Error: 'single_obs' must be NULL or contain exactly one observation.")
+  }
   out<-c()
+  n<-fit$n
   S1<-solve(-fit$hessian)
-  opts<-progresso(iterations = fit$n)
+  if(!is.null(single_obs)){
+    k <- n <- single_obs
+    act_parallel <- FALSE
+    influence <- FALSE
+  }else{k<-1}
+  opts<-progresso(iterations = n)
   require(foreach)
   cl <- parallel::makeCluster(n_cores)
   doSNOW::registerDoSNOW(cl)
   `%op%` <- if (act_parallel) `%dopar%` else `%do%`
-  metrics_list <- foreach(i = 1:fit$n,.packages = c("foreach"),.options.snow = opts,
-    .combine = rbind,.export = c("EST_RQUMW", "llike_RQUMW", "is.positive","vscore_RQUMW",
+  metrics_list <- foreach(i = k:n,.packages = c("foreach"),.options.snow = opts,
+    .combine = rbind,.export = c("EST_RQUMW", "llike_RQUMW","vscore_RQUMW",
     "hessian_RQUMW","test.fun", "which.NA","frechet_simple","rao_simple")) %op% {
     D <- R <- NA_real_
     y_i <- fit$y[-i]
     X_i <- as.matrix(fit$X[-i, , drop = FALSE])
     Z_i <- as.matrix(fit$Z[-i, , drop = FALSE])
     mod_i <- EST_RQUMW(y = y_i, X = X_i, Z = Z_i,tau = fit$quantile,
-                       applic = T,start.theta = fit$pars, g_mu = fit$link$g_mu,
+                       applic = TRUE,start.theta = fit$pars, g_mu = fit$link$g_mu,
                        g_lambda = fit$link$g_lambda,ginv_mu = fit$link$ginv_mu,
                        ginv_lambda = fit$link$ginv_lambda,method = fit$method)
     S2 <- solve(-mod_i$hessian)
@@ -425,32 +503,39 @@ diagn_DIST_RUMW <- function(fit, M = c(1,2), g_num = T, base_size = 12, act_para
   # Frèchet distance --------------------------------------------------------- #
   if(any(M %in% c(1))){
     out$frechet<-as.vector(metrics_m[,1])
-    frechet_infl<-g_threshold_pos(M_i = out$frechet,leg_y = "Frèchet distance",graphic = graphic,
-                                  res_num = g_num,base_size = base_size)
-    out$outliers$frechet <- frechet_infl$Obs_infl
-    if(graphic == T){
-      out$graphics$frechet<-frechet_infl$graphcs_M
+    if(influence == TRUE){
+      frechet_infl<-g_threshold_pos(M_i = out$frechet,leg_y = "Frèchet distance",
+                        graphic = graphic,res_num = g_num,base_size = base_size,
+                        weight = function(n){log(n)^1.1})
+      out$outliers$frechet <- frechet_infl$Obs_infl
+      out$threshold$frechet <- frechet_infl$threshold
+      if(graphic == TRUE){
+        out$graphics$frechet<-frechet_infl$graphcs_M
+      }
     }
   }
   # Rao distance ------------------------------------------------------------- #
   if(any(M %in% c(2))){
     out$rao<-as.vector(metrics_m[,2])
-    rao_infl<-g_threshold_pos(M_i = out$rao,leg_y = "Rao distance", graphic = graphic,
-                              res_num = g_num,base_size = base_size)
-    out$outliers$rao <- rao_infl$Obs_infl
-    if(graphic == T){
-      out$graphics$rao<-rao_infl$graphcs_M
+    if(influence == TRUE){
+      rao_infl<-g_threshold_pos(M_i = out$rao,leg_y = "Rao distance",
+                        graphic = graphic,res_num = g_num,base_size = base_size)
+      out$outliers$rao <- rao_infl$Obs_infl
+      out$threshold$rao <- rao_infl$threshold
+      if(graphic == TRUE){
+        out$graphics$rao<-rao_infl$graphcs_M
+      }
     }
   }
   # Return ------------------------------------------------------------------- #
-  if(print==T){
+  if(influence == TRUE && print == TRUE){
     cat("Observation(s) considered as possible outlier:\n")
-    if(any(M %in% 1)){cat("Frèchet:",out$outliers$frechet,"\n")}
+    if(any(M %in% 1)){cat("Frechet:",out$outliers$frechet,"\n")}
     if(any(M %in% 2)){cat("Rao:",out$outliers$rao,"\n")}
     cat("\n")
     if(graphic == T){
       print(suppressWarnings(cowplot::plot_grid(plotlist = out$graphics,
-                                                ncol = length(out$graphics))))    }
+                                                ncol = length(out$graphics))))}
   }
   out1<-out
 }
@@ -459,7 +544,7 @@ diagn_DIST_RUMW <- function(fit, M = c(1,2), g_num = T, base_size = 12, act_para
 
 frechet_simple <- function(mu1,mu2,S1,S2) {
   dmu2 <- sum((mu1-mu2)^2)
-  trace_term <- sum(diag(S1 + S2 - 2 * expm::sqrtm(S1 %*% S2)))
+  trace_term <- sum(diag(S1 + S2 - 2 * expm::sqrtm(expm::sqrtm(S1) %*% S2 %*% expm::sqrtm(S1))))
   d2 <- sqrt(dmu2 + trace_term)
   return(as.numeric(d2))
 }
@@ -515,14 +600,14 @@ rao_simple <- function(S1,S2) {
 #'
 #'
 #' @export
-diagn_JaB_RUMW <- function(fit, M = c(1,2,3,4,5,6,7), B = 200, graphic = T,set_seed=NULL,
-                      save = F,name_JaB = "JaB", n_cores = (parallel::detectCores()-1)) {
-  if(!any(M%in%1:7)){stop("Select measurements from 1 to 7.")}
+diagn_JaB_RQUMW <- function(fit, M = c(1,2,3,4,5,6,7), B = 200, graphic = T,
+                            set_seed=NULL,save = F,name_JaB = "JaB", prob = NULL,
+                            n_cores = (parallel::detectCores()-1)) {
+  if(!any(M %in% 1:7)){stop("Select measurements from 1 to 7.")}
   out<-list()
   for (Mc in M) {
     met<-c("C_t","I_max","D_t","S3_t","S5_t","Frechet","Rao")
-    cat(met[Mc],"----
-")
+    cat(met[Mc],"----\n")
     M_orig <- func_model(fit, Mc)
     if (!is.null(set_seed)) {set.seed(set_seed)}
     indices_boot <- replicate(B, sample(1:fit$n, replace = TRUE))
@@ -533,7 +618,7 @@ diagn_JaB_RUMW <- function(fit, M = c(1,2,3,4,5,6,7), B = 200, graphic = T,set_s
     b_time <- system.time({
       M_boot_list <- foreach(b = 1:B,.packages = c("foreach"),.options.snow = opts,
                      .export = c("func_model","diagn_LocI_RQUMW","diagn_IME_RQUMW",
-                     "diagn_DIST_RUMW")) %dopar% {
+                     "diagn_DIST_RQUMW")) %dopar% {
         fit2 <- fit
         fit2$data <- fit$data[indices_boot[, b], ]
         res <- try(as.numeric(func_model(fit = fit2, M = Mc, orig = FALSE)),TRUE)
@@ -544,41 +629,117 @@ diagn_JaB_RUMW <- function(fit, M = c(1,2,3,4,5,6,7), B = 200, graphic = T,set_s
     foreach::registerDoSEQ()
     parallel::stopCluster(cl)
     M_boot <- as.data.frame(M_boot_list)
-    M_i_boot <- Fstar <- Fstar_i <-c()
+    M_i_boot <- Fstar <- F_i <-c()
     for (i in 1:fit$n) {
       keep <- which(!apply(indices_boot, 2, function(col) i %in% col))
       M_i_boot[[i]] <- as.numeric(M_boot[i, keep])
-      if(length(M_i_boot[[i]])>0){
-        Fstar[[i]]<- ecdf(M_i_boot[[i]])
-        Fstar_i[i] <- Fstar[[i]](abs(M_orig[i]))
-      }else{stop("Insufficient bootstrap replicas, increase the number of 'B'.")}
+      Fstar[[i]]<-ecdf(M_i_boot[[i]])
+      F_i[i]<-Fstar[[i]](M_orig[i])
     }
+    if(Mc==2){F_i <- ifelse(M_orig<0,1-F_i,F_i)}
     max_len <- max(lengths(M_i_boot))
     M_i_boot_pad <- M_i_boot |> lapply(\(x) { length(x) <- max_len; x }) |>
       as.data.frame() |> (\(df) { names(df) <- paste0("V", seq_along(df)); df })()
+    sec <- (round(b_time[["elapsed"]]))
+    time<-(sprintf("%02dh %02dm %02ds",sec %/% 3600,(sec %% 3600) %/% 60,sec %% 60))
+    out[[met[Mc]]]<-list(M_orig = M_orig,M_t_boot = M_i_boot_pad,time = time, B = B,
+                         Fstar = Fstar,F_t = F_i)
+    #
+    if(graphic==T){
+      leg_y<-c(expression(JaB * " - " * C[t]),expression(JaB * " - " * I[max]),
+               expression(JaB * " - " * D[t]),bquote(JaB ~ "-" ~ S[3*","*t]),
+               bquote(JaB ~ "-" ~ S[5*","*t]), "JaB - Frèchet distance",
+               "JaB - Rao distance")
+      if(is.null(prob)){prob <- (fit$n/(fit$n+1))^2}
+      max_fi <- max(F_i)
+      y_smin <- floor(max_fi / 0.05) * 0.05 - 0.1
+      y_smax <- if (sum(F_i > prob) > 5) max_fi + 0.05 else y_smin
+      g_M<-g_threshold_pos(M_i = F_i,leg_y = leg_y[Mc],
+                           threshold = prob,base_size = 14)
+      out[[met[Mc]]]$threshold <- prob
+      out[[met[Mc]]]$Obs_infl <- g_M$Obs_infl
+      out[[met[Mc]]]$graphic <- g_M$graphcs_M +
+        ggplot2::coord_cartesian(ylim = c(y_smax,1))+
+        ggplot2::scale_y_continuous(labels = function(x) sprintf("%.2f", x))
+      withCallingHandlers(print(out[[met[Mc]]]$graphic),
+                          warning = function(w) invokeRestart("muffleWarning"))
+      cat("Possible influential observations:",out[[met[Mc]]]$Obs_infl,"\n")
+    }
+    if(save==T){
+      outputJaB<-out
+      save(outputJaB,file=paste0(name_JaB,"_B",B,"_",met[Mc],".RData"))
+    }
+  }
+  invisible(out)
+}
+
+# pseudo-JaB ===================================================================
+
+#' @export
+diagn_pseudoJaB_RQUMW <- function(fit, M = c(1,2,3,4,5,6,7), B = 200, graphic = T,
+                       set_seed=NULL,save = F,name_JaB = "JaB",prob=NULL,
+                       n_cores = (parallel::detectCores()-1)) {
+  if(!any(M%in%1:7)){stop("Select measurements from 1 to 7.")}
+  out<-list()
+  for (Mc in M) {
+    met<-c("C_t","I_max","D_t","S3_t","S5_t","Frechet","Rao")
+    cat(met[Mc],"----\n")
+    M_orig <- func_model(fit, Mc)
+    if (!is.null(set_seed)) {set.seed(set_seed)}
+    B_data <- replicate(B, rRQUMW(n = fit$n,theta = fit$pars,X = fit$X,
+              Z = fit$Z,tau = fit$quantile,ginv_mu = fit$link$ginv_mu,
+              ginv_lambda = fit$link$ginv_lambda,set_seed = NULL))
+    ib <- sample(1:fit$n,B, replace = TRUE)
+    opts<-progresso(iterations = B)
+    require(foreach)
+    cl <- parallel::makeCluster(n_cores)
+    doSNOW::registerDoSNOW(cl)
+    b_time <- system.time({
+      dist_list <- foreach(b = 1:B,.packages = c("foreach"),.options.snow = opts,
+         .export = c("func_model","diagn_LocI_RQUMW","diagn_IME_RQUMW",
+                      "diagn_DIST_RQUMW")) %dopar% {
+                        fit2 <- fit
+                        fit2$data[,1] <- B_data[,b]
+                        res <- try(as.numeric(func_model(fit = fit2, M = Mc,
+                                   orig = FALSE,single_obs = ib[b])),TRUE)
+                        if (inherits(res, "try-error")) NA_real_ else res
+      }
+    })
+    foreach::registerDoSEQ()
+    parallel::stopCluster(cl)
+    dist_vec <- unlist(dist_list)
+    dist_vec <- dist_vec[!is.na(dist_vec)]
+    if(length(dist_vec) == 0){stop("All pseudo-JaB replications failed.")}
     #
     sec <- (round(b_time[["elapsed"]]))
     time<-(sprintf("%02dh %02dm %02ds",sec %/% 3600,(sec %% 3600) %/% 60,sec %% 60))
-    out[[met[Mc]]]<-list(M_orig = M_orig,Fstar = Fstar,Fstar_i = Fstar_i,
-                         M_i_boot = M_i_boot_pad,time = time, B = B)
+    out[[met[Mc]]]<-list(M_orig = M_orig,pJaB_values = dist_vec,time = time, B = B)
     #
     if(graphic==T){
-      leg_y<-c(expression(JaB - C[t]),expression(JaB - I[max]),expression(JaB - D[t]),
-               bquote(JaB - S[3*","*t]), bquote(JaB - S[5*","*t]), "JaB - Frèchet distance",
-               "JaB - Rao distance")
-      threshold_t<-round((fit$n/(fit$n+1)),4)
-      g_M<-g_threshold_pos(M_i = Fstar_i,leg_y = leg_y[Mc],
-                      threshold = threshold_t,base_size = 14)
-      out[[met[Mc]]]$Obs_infl <- g_M$Obs_infl
-      out[[met[Mc]]]$graphic <- g_M$graphcs_M +
-        ggplot2::geom_text(data = data.frame(y = c(threshold_t)),
-                           ggplot2::aes(x = Inf, y = threshold_t, label = paste(threshold_t)),
-                           hjust = 1.1, vjust = -0.25, color = "gray40",size = 2) +
-        ggplot2::coord_cartesian(ylim = c(0.85, 1))
-      out[[met[Mc]]]$threshold <- threshold_t
+      leg_y<-c(expression(pJaB * " - " * C[t]),expression(pJaB * " - " * I[max]),
+               expression(pJaB * " - " * D[t]),bquote(pJaB ~ "-" ~ S[3*","*t]),
+               bquote(pJaB ~ "-" ~ S[5*","*t]), "pJaB - Frèchet distance",
+               "pJaB - Rao distance")
+      if(Mc %in% c(1,3:7)){
+        if(is.null(prob)){prob <- (fit$n/(fit$n+1))^2}
+        threshold1<-quantile(dist_vec,prob)
+        g_M<-g_threshold_pos(M_i = M_orig,leg_y = leg_y[Mc],
+                             threshold = threshold1,base_size = 14)
+        out[[met[Mc]]]$threshold <- threshold1
+        out[[met[Mc]]]$Obs_infl <- g_M$Obs_infl
+        out[[met[Mc]]]$graphic <- g_M$graphcs_M
+      }else{
+        Ib <- interval_cook(sm = dist_vec,Type = 4,m_orig = M_orig)
+        out[[met[Mc]]]$threshold <- threshold1 <- Ib$I1
+        out[[met[Mc]]]$Obs_infl <- Ib$Obs_I1
+        V <- ifelse(Mc == 4, 1, 0)
+        out[[met[Mc]]]$graphic <- g_diagnostic_RQUMW(sm_i = M_orig,v = V,
+                            I1 = round(threshold1,3),leg_y = leg_y[Mc],n = fit$n,
+                            y = fit$y,res_num = TRUE,base_size = 14)
+      }
       withCallingHandlers(print(out[[met[Mc]]]$graphic),
                           warning = function(w) invokeRestart("muffleWarning"))
-      cat("Possible influential observations:",g_M$Obs_infl,"\n")
+      cat("Possible influential observations:",out[[met[Mc]]]$Obs_infl,"\n")
     }
     if(save==T){
       outputJaB<-out
@@ -589,34 +750,35 @@ diagn_JaB_RUMW <- function(fit, M = c(1,2,3,4,5,6,7), B = 200, graphic = T,set_s
 }
 
 # selection of the measure for JaB ---------------------------------------------
-func_model <- function(fit, M = c(1,2,3,4,5,6,7),orig=T) {
-  if(orig==T){mod<-fit}else{
+func_model <- function(fit, M = c(1,2,3,4,5,6,7),orig=T,single_obs=NULL) {
+  if(orig==TRUE){mod<-fit}else{
     mod <- fit_RQUMW(fit$formula,data = fit$data,tau = fit$quantile,
                      link_mu = fit$link$link_mu,method = fit$method,printmodel = F)
   }
   if(M == 1){# C_t
-    M_i <- diagn_LocI_RQUMW(mod,M = c(1),k = 0,print = F,graphic = F)$C_t
+    M_i <- diagn_LocI_RQUMW(mod,M = c(1),k = 0,single_obs=single_obs,influence=FALSE)$C_t
   }
   if(M == 2){# I_max
-    M_i <- diagn_LocI_RQUMW(mod,M = c(2),k = 0,print = F,graphic = F)$I_max
+    M_i <- diagn_LocI_RQUMW(mod,M = c(2),k = 0,single_obs=single_obs,influence=FALSE)$I_max
   }
   if(M == 3){# D_i
-    M_i <- diagn_IME_RQUMW(mod,M = c(1),print = F,graphic = F,act_parallel = F)$D_t
+    M_i <- diagn_IME_RQUMW(mod,M = c(1),single_obs=single_obs,influence=FALSE)$D_t
   }
   if(M == 4){# S3_i
-    M_i <- diagn_IME_RQUMW(mod,M = c(2),print = F,graphic = F,act_parallel = F)$s3_t
+    M_i <- diagn_IME_RQUMW(mod,M = c(2),single_obs=single_obs,influence=FALSE)$s3_t
   }
   if(M == 5){# S5_i
-    M_i <- diagn_IME_RQUMW(mod,M = c(3),print = F,graphic = F,act_parallel = F)$s5_t
+    M_i <- diagn_IME_RQUMW(mod,M = c(3),single_obs=single_obs,influence=FALSE)$s5_t
   }
   if(M == 6){# Frechet
-    M_i <- diagn_DIST_RUMW(mod,M = c(1),print = F,graphic = F,act_parallel = F)$frechet
+    M_i <- diagn_DIST_RQUMW(mod,M = c(1),single_obs=single_obs,influence=FALSE)$frechet
   }
   if(M == 7){# Rao
-    M_i <- diagn_DIST_RUMW(mod,M = c(2),print = F,graphic = F,act_parallel = F)$rao
+    M_i <- diagn_DIST_RQUMW(mod,M = c(2),single_obs=single_obs,influence=FALSE)$rao
   }
   return(M_i)
 }
 # ---------------------------------------------------------------------------- #
+
 
 
